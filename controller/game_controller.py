@@ -1,60 +1,110 @@
 ﻿# controller/game_controller.py
-import curses
+import time
+from model.observer import Observer
+
+# Menu to listy identyfikatorów akcji - napisy do wyświetlenia zna tylko widok.
+MAIN_MENU = ["shop", "play", "sleep", "exit"]
+DEATH_MENU = ["resurrect", "exit"]
 
 
-class GameController:
+class GameController(Observer):
+    """Steruje grą niezależnie od rodzaju widoku.
+
+    Widok musi udostępniać tylko dwie metody:
+      - get_command() -> "NEXT" | "PREV" | "CONFIRM" | "BACK" | None
+        (czeka krótko na wejście użytkownika, ustala tempo pętli gry)
+      - show_menu(items, selected_idx)
+    Dzięki temu wersja graficzna wymaga jedynie nowej klasy widoku.
+    """
+
     def __init__(self, model, view):
         self.model = model
         self.view = view
 
+        self.main_menu = list(MAIN_MENU)
+        self.shop_menu = [f"buy:{name}" for name in model.shop_items] + ["back"]
+        self.death_menu = list(DEATH_MENU)
+
+        # Zwierzak mógł umrzeć podczas nieobecności gracza (wczytany zapis)
+        self.menu = self.main_menu if model.is_alive else self.death_menu
+        self.selected_idx = 0
+        self.running = False
+
+        # Kontroler też obserwuje model, żeby zareagować np. na śmierć zwierzaka
+        self.model.add_observer(self)
+
+    # --- METODA Z WZORCA OBSERWATOR ---
+    def update(self, event_name, data=None):
+        if event_name == "pet_died":
+            self._open_menu(self.death_menu)  # Zostaje tylko "Odródź" i "Wyjście"
+        elif event_name == "pet_resurrected":
+            self._open_menu(self.main_menu)
+
+    # --- GŁÓWNA PĘTLA ---
     def run(self):
-        while True:
-            # 1. Czas mija - update modelu (co 0.5s ze względu na timeout w Widoku)
-            self.model.pass_time(0.5)
+        self.running = True
+        self._show_menu()
+        last_tick = time.monotonic()
+        try:
+            while self.running:
+                command = self.view.get_command()
 
-            # 2. Nasłuchujemy klawiszy
-            key = self.view.stdscr.getch()
+                # Czas mija - liczymy ile faktycznie upłynęło od ostatniego obiegu,
+                # więc naciskanie klawiszy nie przyspiesza gry.
+                now = time.monotonic()
+                self.model.pass_time(now - last_tick)
+                last_tick = now
 
-            # Obsługa strzałek i entera
-            if key == curses.KEY_RIGHT:
-                self.view.move_menu(1)
-            elif key == curses.KEY_LEFT:
-                self.view.move_menu(-1)
-            elif key in [10, 13]:  # Klawisz ENTER
-                action = self.view.get_selected_action()
+                if command:
+                    self.handle_command(command)
+        finally:
+            # Zapis także przy Ctrl+C
+            self.model.save_state()
 
-                # Jeśli zwierzak nie żyje, blokujemy normalne akcje
-                if not self.model.is_alive:
-                    if action == "Wyjście":
-                        self.model.save_state()
-                        break
-                    else:
-                        self.model.resurrect()
-                        continue
+    def handle_command(self, command):
+        if command == "NEXT":
+            self._move(1)
+        elif command == "PREV":
+            self._move(-1)
+        elif command == "CONFIRM":
+            self._execute(self.menu[self.selected_idx])
+        elif command == "BACK":
+            if self.menu is self.shop_menu:
+                self._open_menu(self.main_menu)
 
-                # --- LOGIKA MENU GŁÓWNEGO ---
-                if self.view.active_menu == self.view.main_menu:
-                    if action == "Sklep":
-                        self.view.active_menu = self.view.shop_menu
-                        self.view.selected_idx = 0
-                        self.view.draw_menu()
-                    elif action == "Zabawa":
-                        self.model.play()
-                    elif action == "Śpij":
-                        self.model.sleep()
-                    elif action == "Wyjście":
-                        self.model.save_state()
-                        break
+    # --- POMOCNICZE ---
+    def _execute(self, action):
+        if action == "exit":
+            self.running = False
+            return
 
-                # --- LOGIKA MENU SKLEPU ---
-                elif self.view.active_menu == self.view.shop_menu:
-                    if action == "Wróć":
-                        self.view.active_menu = self.view.main_menu
-                        self.view.selected_idx = 0
-                        self.view.draw_menu()
-                    elif "Jablko" in action:
-                        self.model.buy_and_feed("Jablko")
-                    elif "Burger" in action:
-                        self.model.buy_and_feed("Burger")
-                    elif "Kawa" in action:
-                        self.model.buy_and_feed("Kawa")
+        if action == "resurrect":
+            self.model.resurrect()  # Menu główne otworzy się po zdarzeniu "pet_resurrected"
+            return
+
+        # Martwy zwierzak nie może nic robić - tylko "Odródź" albo "Wyjście"
+        if not self.model.is_alive:
+            return
+
+        if action == "shop":
+            self._open_menu(self.shop_menu)
+        elif action == "back":
+            self._open_menu(self.main_menu)
+        elif action == "play":
+            self.model.play()
+        elif action == "sleep":
+            self.model.sleep()
+        elif action.startswith("buy:"):
+            self.model.buy_and_feed(action[len("buy:"):])
+
+    def _move(self, direction):
+        self.selected_idx = (self.selected_idx + direction) % len(self.menu)
+        self._show_menu()
+
+    def _open_menu(self, menu):
+        self.menu = menu
+        self.selected_idx = 0
+        self._show_menu()
+
+    def _show_menu(self):
+        self.view.show_menu(self.menu, self.selected_idx)
