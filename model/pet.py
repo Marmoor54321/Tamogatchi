@@ -6,6 +6,15 @@ from model.observer import Observable
 
 
 class Pet(Observable):
+    # --- BALANS GRY ---
+    # Ile punktów statystyki ubywa na sekundę
+    HUNGER_DROP_PER_SEC = 1 / 5       # 1 punkt głodu co 5 sekund
+    ENERGY_DROP_PER_SEC = 0.8 / 5
+    HAPPINESS_DROP_PER_SEC = 1.2 / 5
+    HEALTH_DROP_PER_SEC = 1.0         # gdy zwierzak jest głodny lub zmęczony
+    LOW_STAT_THRESHOLD = 20           # poniżej tej wartości zwierzak traci zdrowie
+    PLAY_REWARD = 30                  # $ za zabawę
+
     def __init__(self, name="Tama"):
         super().__init__()
         self.name = name
@@ -28,8 +37,9 @@ class Pet(Observable):
         }
 
     def _clamp(self, value):
-        """Pomocnicza metoda trzymająca statystyki w ryzach (0-100)"""
-        return max(0, min(100, int(value)))
+        """Pomocnicza metoda trzymająca statystyki w ryzach (0-100).
+        Wartości są zmiennoprzecinkowe, żeby małe przyrosty czasu się sumowały."""
+        return max(0.0, min(100.0, float(value)))
 
     def _update_stat(self, stat_name, amount):
         """Aktualizuje statystykę i powiadamia obserwatorów"""
@@ -66,7 +76,7 @@ class Pet(Observable):
         self._update_stat("happiness", 30)
         self._update_stat("energy", -20)
         self._update_stat("hunger", -20)
-        self.money += 30  # Nagroda za zabawę!
+        self.money += self.PLAY_REWARD  # Nagroda za zabawę!
         self.notify_observers("action_play")
 
     def resurrect(self):
@@ -100,23 +110,15 @@ class Pet(Observable):
 
     def pass_time(self, seconds):
         """Wywoływane przez Kontroler w głównej pętli gry. Obniża statystyki w czasie."""
-        if not self.is_alive: return
+        if not self.is_alive or seconds <= 0: return
 
-        # Przykładowy przelicznik: 1 punkt głodu spada co 5 sekund (do dostrojenia później)
-        drop_rate = seconds / 5.0
+        self.hunger = self._clamp(self.hunger - seconds * self.HUNGER_DROP_PER_SEC)
+        self.energy = self._clamp(self.energy - seconds * self.ENERGY_DROP_PER_SEC)
+        self.happiness = self._clamp(self.happiness - seconds * self.HAPPINESS_DROP_PER_SEC)
 
-        self.hunger -= drop_rate
-        self.energy -= (drop_rate * 0.8)
-        self.happiness -= (drop_rate * 1.2)
-
-        # Konwersja na inty za pomocą clamp
-        self.hunger = self._clamp(self.hunger)
-        self.energy = self._clamp(self.energy)
-        self.happiness = self._clamp(self.happiness)
-
-        # Jeśli zwierzak jest głodny lub zmęczony, traci zdrowie
-        if self.hunger < 20 or self.energy < 20:
-            self.health = self._clamp(self.health - 5)
+        # Jeśli zwierzak jest głodny lub zmęczony, traci zdrowie (proporcjonalnie do czasu)
+        if self.hunger < self.LOW_STAT_THRESHOLD or self.energy < self.LOW_STAT_THRESHOLD:
+            self.health = self._clamp(self.health - seconds * self.HEALTH_DROP_PER_SEC)
             if self.health == 0:
                 self.is_alive = False
                 self.notify_observers("pet_died")
