@@ -1,0 +1,29 @@
+# Python bytecode / cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Wirtualne środowisko
+.venv/
+venv/
+env/
+
+# Zapis stanu gry
+save.json
+
+# Testy / narzędzia
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+
+# PyCharm / IDE – pliki lokalne użytkownika
+.idea/workspace.xml
+.idea/shelf/
+.idea/usage.statistics.xml
+.vscode/
+
+# System
+.DS_Store
+Thumbs.db
+desktop.ini
