@@ -112,7 +112,9 @@ class GameController(Observer):
             else:
                 self.shop.buy_skin(skin_id)
         elif action == "play":
-            self._play_minigame()
+            # O tym, czy zwierzak ma siłę na zabawę, decyduje model
+            if self.model.start_play():
+                self._play_minigame()
         elif action == "sleep":
             self.model.sleep()
         elif action.startswith("buy:"):

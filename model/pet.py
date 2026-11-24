@@ -16,6 +16,7 @@ class Pet(Observable):
     LOW_STAT_THRESHOLD = 20           # poniżej tej wartości zwierzak traci zdrowie
     SLEEPY_THRESHOLD = 30             # poniżej - zwierzak jest śpiący
     SAD_THRESHOLD = 40                # poniżej - zwierzak jest smutny
+    MIN_ENERGY_TO_PLAY = SLEEPY_THRESHOLD  # śpiący zwierzak nie chce się bawić
     MONEY_PER_OBSTACLE = 10           # $ za każdą przeskoczoną przeszkodę w minigrze
 
     def __init__(self, name="Tama"):
@@ -77,6 +78,20 @@ class Pet(Observable):
         """Zabawa ze zwierzakiem. Za każdą przeskoczoną przeszkodę w minigrze gracz otrzymuje 10$."""
         if not self.is_alive: return
         return self.record_minigame_result(score)
+
+    def can_play(self):
+        """Czy zwierzak ma dość siły na zabawę."""
+        return self.is_alive and self.energy >= self.MIN_ENERGY_TO_PLAY
+
+    def start_play(self):
+        """Zwierzak próbuje zacząć zabawę. Gdy jest zbyt zmęczony, odmawia
+        (zdarzenie "action_play_refused") i zwraca False."""
+        if not self.is_alive:
+            return False
+        if not self.can_play():
+            self.notify_observers("action_play_refused", self.MIN_ENERGY_TO_PLAY)
+            return False
+        return True
 
     def record_minigame_result(self, score: int = 0):
         """Aktualizuje statystyki po minigrze Dino.

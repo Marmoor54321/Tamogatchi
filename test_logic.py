@@ -172,5 +172,63 @@ class SaveFileTest(TempSaveMixin, unittest.TestCase):
         self.assertAlmostEqual(loaded.hunger, 80, delta=0.5)
 
 
+class PlayEnergyTest(TempSaveMixin, unittest.TestCase):
+    """Zmęczony zwierzak (energia < MIN_ENERGY_TO_PLAY) nie może się bawić."""
+
+    def test_can_play_threshold(self):
+        pet = Pet()
+        pet.energy = Pet.MIN_ENERGY_TO_PLAY
+        self.assertTrue(pet.can_play())
+        pet.energy = Pet.MIN_ENERGY_TO_PLAY - 0.1
+        self.assertFalse(pet.can_play())
+
+    def test_tired_pet_refuses_and_minigame_does_not_start(self):
+        clock = FakeClock()
+        pet = self.new_pet()
+        pet.energy, pet.money = 10, 0
+        events = []
+        pet.add_observer(type("Spy", (), {"update": lambda self, e, d=None: events.append(e)})())
+        started = []
+        view = ScriptedView(clock, ["CONFIRM", "NEXT", "NEXT", "CONFIRM"], minigame_frames=5)
+        view.start_minigame = lambda game: started.append(game)
+        with mock.patch("time.monotonic", clock):
+            ctrl = GameController(pet, view)
+            ctrl.selected_idx = ctrl.menu.index("play")
+            ctrl.run()
+        self.assertEqual(started, [])
+        self.assertIn("action_play_refused", events)
+        self.assertNotIn("action_play", events)
+        self.assertEqual(pet.money, 0)
+
+    def test_rested_pet_can_play(self):
+        clock = FakeClock()
+        pet = self.new_pet()
+        started = []
+        view = ScriptedView(clock, ["CONFIRM", "NEXT", "NEXT", "CONFIRM"], minigame_frames=1)
+        view.start_minigame = lambda game: started.append(game)
+        with mock.patch("time.monotonic", clock):
+            ctrl = GameController(pet, view)
+            ctrl.selected_idx = ctrl.menu.index("play")
+            ctrl.run()
+        self.assertEqual(len(started), 1)
+
+    def test_menu_marks_play_unavailable_and_explains_why(self):
+        from model.shop import Shop
+        from view.console.layout import MESSAGE_BOX
+        from view.console.menu_panel import MenuPanel
+        pet = Pet()
+        menu = MenuPanel(canvas=None, pet=pet, shop=Shop(pet))
+        menu.set_items(["play"], 0)
+        self.assertTrue(menu.is_available("play"))
+        self.assertIsNone(menu.describe_hovered())
+
+        pet.energy = 5
+        self.assertFalse(menu.is_available("play"))
+        text, style = menu.describe_hovered()
+        self.assertIn("energii", text)
+        self.assertEqual(style, "warn")
+        self.assertLessEqual(len(text), MESSAGE_BOX[3] - 6)
+
+
 if __name__ == "__main__":
     unittest.main()

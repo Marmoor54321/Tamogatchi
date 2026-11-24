@@ -25,6 +25,7 @@ _MESSAGES = {
     "pet_died": lambda d: ("Zwierzak umarl (X_X). Wybierz 'Odrodz', by go wskrzesic!", "bad"),
     "pet_resurrected": lambda d: ("Magia! Zwierzak dostal drugie zycie!", "good"),
     "action_play": _play_message,
+    "action_play_refused": lambda d: ("Zwierzak jest zbyt zmeczony na zabawe. Niech sie przespi!", "warn"),
     "action_feed": lambda d: ("Mniam! (+Glod)", "good"),
     "action_sleep": lambda d: ("Zzz... (+Energia)", "sleepy"),
     "action_buy_success": lambda d: (f"Kupiono i uzyto: {_item_name(d)}!", "good"),

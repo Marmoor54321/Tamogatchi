@@ -96,7 +96,13 @@ class ConsoleView(Observer):
             return
 
         if event_name == "stats_changed":
-            self._redraw(self.stats, self.pet_panel)
+            # Energia spada z czasem - "Zabawa" może przestać (albo zacząć) być dostępna
+            self._redraw(self.stats, self.pet_panel, self.menu)
+            if self.message.hint:
+                # Odśwież widoczną podpowiedź (np. "brakuje 10$", "za malo energii").
+                # Gdy panel pokazuje wynik akcji, zostawiamy go w spokoju.
+                self.message.show_hint(self.menu.describe_hovered())
+                self.message.redraw()
         elif event_name == "pet_died":
             self.full_redraw()
         elif event_name == "pet_resurrected":

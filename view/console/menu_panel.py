@@ -50,6 +50,10 @@ class MenuPanel(Panel):
             return None
         action = self.items[self.selected_idx]
 
+        if action == "play" and self.pet.is_alive and not self.pet.can_play():
+            return (f"Za malo energii (min. {self.pet.MIN_ENERGY_TO_PLAY}%). "
+                    "Wybierz 'Spij' albo kup kawe.", "warn")
+
         if action.startswith("buy:"):
             item = self.shop.items[action[len("buy:"):]]
             effects = ", ".join(f"{STAT_LABELS.get(stat, stat)} {amount:+g}"
@@ -100,7 +104,7 @@ class MenuPanel(Panel):
         for i, pos in zip(range(first, last), xs):
             if i == self.selected_idx:
                 attr = s["selected"]
-            elif not self.can_afford(self.items[i]):
+            elif not self.is_available(self.items[i]):
                 attr = s["disabled"]
             else:
                 attr = s["text"]
@@ -148,7 +152,10 @@ class MenuPanel(Panel):
             return f"{skin_name(skin_id)}({self.shop.skin_prices[skin_id]}$)"
         return ACTION_LABELS.get(action, action)
 
-    def can_afford(self, action):
+    def is_available(self, action):
+        """Czy pozycję da się teraz wybrać (inaczej rysujemy ją na czerwono)."""
+        if action == "play":
+            return self.pet.can_play()
         if action.startswith("buy:"):
             return self.shop.can_afford(action[len("buy:"):])
         if action.startswith("skin:"):
