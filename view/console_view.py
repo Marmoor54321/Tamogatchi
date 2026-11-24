@@ -2,7 +2,7 @@
 import curses
 import sys
 from model.observer import Observer
-from view.minigame_props import PROPS
+from view.minigame_props import PROPS, get_player_prop
 from view.skin_art import MOODS, render_skin, skin_name
 from model.skins import SKIN_PRICES
 
@@ -456,7 +456,7 @@ class ConsoleView(Observer):
 
         # Gracz
         player_entity = game.get_player_entity()
-        player_prop = PROPS.get(player_entity.prop_id)
+        player_prop = get_player_prop(self.pet.active_skin, player_entity.prop_id)
         if player_prop:
             self._draw_prop_at(player_prop, player_entity.x, player_entity.y, ground_row=ground_row)
 

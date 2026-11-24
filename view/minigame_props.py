@@ -118,3 +118,38 @@ PROPS: dict[str, TextProp] = {
         style="frame"
     ),
 }
+
+def _skin_frames(run_1, run_2, jump, crash):
+    return {
+        PropType.PLAYER_RUN_1: TextProp(run_1, style="good"),
+        PropType.PLAYER_RUN_2: TextProp(run_2, style="good"),
+        PropType.PLAYER_JUMP: TextProp(jump, style="title"),
+        PropType.PLAYER_CRASH: TextProp(crash, style="bad"),
+    }
+
+
+SKIN_PLAYER_PROPS: dict[str, dict[str, TextProp]] = {
+    "kotek": _skin_frames(
+        run_1=[" /\\_/\\ ","( ^.^ )", "~> ^ < "],
+        run_2=["  |\\_|\\ "," ( ^.^ )", "-< ^ > "],
+        jump=[" /\\_/\\ ","( ^o^ )", "~> ^ < "],
+        crash=[" /\\_/\\ ","( x.x )", "~> ^ < "],
+    ),
+    "krolik": _skin_frames(
+        run_1=["(\\_/) ","(^.^)", '(")(")'],
+        run_2=[" )\\_/( "," (^.^)", '("(("( '],
+        jump=[")\\_/( ","(^o^)", '(")(")'],
+        crash=[" )\\_/( ","(x.x)", '(")(")'],
+    ),
+    "robot": _skin_frames(
+        run_1=[" .-T-. ","[ ^_^ ]", " /|_|\\"],
+        run_2=["  .-\\-. "," [ ^_^ ]", " \|_|/"],
+        jump=[" .-T-. ","[ ^o^ ]", " <|_|>"],
+        crash=[" .-T-. ","[ x_x ]", " /|_|\\"],
+    ),
+}
+
+
+def get_player_prop(skin_id: str, prop_id: str):
+    """Klatka gracza w danej skórce, a gdy jej brak - domyślna z PROPS."""
+    return SKIN_PLAYER_PROPS.get(skin_id, {}).get(prop_id) or PROPS.get(prop_id)

@@ -128,5 +128,20 @@ class SkinControllerTest(unittest.TestCase):
         self.assertEqual(self.pet.money, 0)
 
 
+class MinigameSkinTest(unittest.TestCase):
+    def test_every_skin_has_all_player_frames(self):
+        from model.dino_game import DinoGame, PropType
+        from view.minigame_props import get_player_prop
+        frames = [PropType.PLAYER_RUN_1, PropType.PLAYER_RUN_2, PropType.PLAYER_JUMP, PropType.PLAYER_CRASH]
+        game = DinoGame()
+        for skin_id in SKIN_PRICES:
+            for frame in frames:
+                prop = get_player_prop(skin_id, frame)
+                self.assertIsNotNone(prop, (skin_id, frame))
+                # Rysunek ma wysokość hitboxa i nie jest dużo szerszy
+                self.assertEqual(prop.height, game.player_height, (skin_id, frame))
+                self.assertLessEqual(prop.width, game.player_width + 1, (skin_id, frame))
+
+
 if __name__ == "__main__":
     unittest.main()
