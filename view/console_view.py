@@ -1,57 +1,24 @@
 ﻿# view/console_view.py
+"""Widok konsolowy (curses) - składa ekran z małych widoków z view/console/.
+
+ConsoleView sam niczego nie rysuje. Udostępnia kontrolerowi to samo API co
+wcześniej (get_command, show_menu, start_minigame, ...), odbiera zdarzenia
+z modelu i mówi odpowiednim panelom, żeby się przerysowały.
+"""
 import curses
-import sys
+
 from model.observer import Observer
-from view.minigame_props import PROPS, get_player_prop
-from view.skin_art import MOODS, render_skin, skin_name
-from model.skins import SKIN_PRICES
+from view.console import messages
+from view.console.canvas import Canvas
+from view.console.keys import MENU_KEYS, MINIGAME_KEYS, RESIZE, read_key
+from view.console.layout import HINT, ROW_HINT, SCREEN_H, SCREEN_W, TOO_SMALL
+from view.console.menu_panel import MenuPanel
+from view.console.message_panel import MessagePanel
+from view.console.minigame_screen import MinigameScreen
+from view.console.pet_panel import PetPanel
+from view.console.stats_panel import StatsPanel
 
-# Tłumaczenie klawiszy na abstrakcyjne komendy rozumiane przez kontroler.
-# Kontroler nie wie nic o curses - widok GUI może generować te same komendy
-# np. z kliknięć przycisków.
-KEY_COMMANDS = {
-    curses.KEY_RIGHT: "NEXT",
-    curses.KEY_LEFT: "PREV",
-    curses.KEY_ENTER: "CONFIRM",
-    10: "CONFIRM",   # Enter (LF)
-    13: "CONFIRM",   # Enter (CR)
-    27: "BACK",      # Esc
-    curses.KEY_BACKSPACE: "BACK",
-    8: "BACK",       # Backspace (Windows)
-    127: "BACK",     # Backspace (Linux)
-}
-
-# Napisy wyświetlane dla identyfikatorów akcji z kontrolera.
-ACTION_LABELS = {
-    "shop": "Sklep",
-    "play": "Zabawa",
-    "sleep": "Śpij",
-    "exit": "Wyjście",
-    "back": "Wróć",
-    "resurrect": "Odródź",
-    "skins": "Skórki",
-}
-
-# --- UKŁAD EKRANU ---
-# Każdy panel to (y, x, wysokość, szerokość) razem z ramką.
-SCREEN_W = 66
-SCREEN_H = 15
-STATS_BOX = (0, 0, 8, 34)
-PET_BOX = (0, 34, 8, 32)
-MESSAGE_BOX = (8, 0, 3, 66)
-MENU_BOX = (11, 0, 3, 66)
-ROW_HINT = 14
-
-BAR_WIDTH = 15
-LABEL_WIDTH = 10
-MENU_SPACING = 16
-
-HINT = "<- -> wybor    Enter zatwierdz    Esc wroc ze sklepu"
-
-
-def _acs(name, fallback):
-    """Znak ramki z curses (dostępny dopiero po initscr) albo zwykły zamiennik."""
-    return getattr(curses, "ACS_" + name, ord(fallback))
+MINIGAME_TICK_MS = 45  # ~22 FPS
 
 
 class ConsoleView(Observer):
@@ -76,440 +43,95 @@ class ConsoleView(Observer):
             except curses.error:
                 pass
 
-        self._init_colors()
-        self.too_small = False
+        # --- Małe widoki ---
+        self.canvas = Canvas(stdscr)
+        self.stats = StatsPanel(self.canvas, pet)
+        self.pet_panel = PetPanel(self.canvas, pet)
+        self.message = MessagePanel(self.canvas)
+        self.menu = MenuPanel(self.canvas, pet)
+        self.panels = [self.stats, self.pet_panel, self.message, self.menu]
+        self.minigame = MinigameScreen(self.canvas, pet)
 
-        # Menu przekazywane przez kontroler (lista identyfikatorów akcji)
-        self.menu_items = []
-        self.selected_idx = 0
-        if pet.is_alive:
-            self._set_message("Witaj w Tamagotchi! Zadbaj o swojego zwierzaka.", "info")
-        else:
-            self._set_message("Pod twoja nieobecnosc zwierzak umarl (X_X). Wybierz 'Odrodz'!", "bad")
-
+        self.message.set(*(messages.WELCOME if pet.is_alive else messages.DIED_WHILE_AWAY))
         self.full_redraw()
-
-    # --- KOLORY ---
-    def _init_colors(self):
-        """Tworzy style (kolor + atrybut). Bez obsługi kolorów zostają same atrybuty."""
-        normal, bold = curses.A_NORMAL, curses.A_BOLD
-        self.style = {
-            "frame": normal, "title": bold, "text": normal, "info": bold,
-            "good": bold, "warn": normal, "bad": bold, "money": bold,
-            "selected": curses.A_REVERSE, "disabled": normal,
-            "hint": normal, "empty": normal, "sleepy": normal,
-        }
-        try:
-            if not curses.has_colors():
-                return
-            curses.start_color()
-            try:
-                curses.use_default_colors()
-                bg = -1  # Przezroczyste tło - takie jak w terminalu
-            except curses.error:
-                bg = curses.COLOR_BLACK
-
-            pairs = {
-                # nazwa: (kolor tekstu, tło, dodatkowy atrybut)
-                "frame": (curses.COLOR_CYAN, bg, normal),
-                "title": (curses.COLOR_YELLOW, bg, bold),
-                "text": (curses.COLOR_WHITE, bg, normal),
-                "info": (curses.COLOR_WHITE, bg, bold),
-                "good": (curses.COLOR_GREEN, bg, bold),
-                "warn": (curses.COLOR_YELLOW, bg, bold),
-                "bad": (curses.COLOR_RED, bg, bold),
-                "money": (curses.COLOR_YELLOW, bg, bold),
-                "selected": (curses.COLOR_BLACK, curses.COLOR_CYAN, bold),
-                "disabled": (curses.COLOR_RED, bg, normal),
-                "hint": (curses.COLOR_BLUE, bg, bold),
-                "empty": (curses.COLOR_WHITE, bg, normal),
-                "sleepy": (curses.COLOR_CYAN, bg, bold),
-            }
-            for i, (name, (fg, back, extra)) in enumerate(pairs.items(), start=1):
-                curses.init_pair(i, fg, back)
-                self.style[name] = curses.color_pair(i) | extra
-        except curses.error:
-            pass  # Terminal bez kolorów - zostają style awaryjne
-
-    def _stat_style(self, value):
-        """Zielony / żółty / czerwony zależnie od poziomu statystyki."""
-        if value >= 60:
-            return self.style["good"]
-        if value >= 30:
-            return self.style["warn"]
-        return self.style["bad"]
 
     # --- WEJŚCIE ---
     def get_command(self):
         """Czeka na klawisz (maks. jeden tick) i zwraca komendę albo None."""
-        key = self.stdscr.getch()
-        if key == getattr(curses, "KEY_RESIZE", None):
-            if sys.platform == "win32":
-                try:
-                    curses.resize_term(0, 0)  # PDCurses wymaga ręcznego odczytu nowego rozmiaru
-                except curses.error:
-                    pass
+        key = read_key(self.stdscr)
+        if key == RESIZE:
             self.full_redraw()
             return None
-        return KEY_COMMANDS.get(key)
+        return MENU_KEYS.get(key)
+
+    def get_minigame_command(self):
+        """Odczytuje klawisz w trybie minigry: "JUMP", "QUIT" albo None."""
+        key = read_key(self.stdscr)
+        return None if key == RESIZE else MINIGAME_KEYS.get(key)
 
     # --- API DLA KONTROLERA ---
     def show_menu(self, items, selected_idx):
         """Wyświetla podane menu (identyfikatory akcji) z zaznaczoną pozycją."""
-        self.menu_items = items
-        self.selected_idx = selected_idx
-        self.draw_menu()
-        self.draw_art()  # W menu skórek panel zwierzaka pokazuje podgląd
+        self.menu.set_items(items, selected_idx)
+        self.pet_panel.preview_skin = self.menu.hovered_skin()  # Podgląd w sklepie skórek
+        self.menu.redraw()
+        self.pet_panel.redraw()
 
     # --- METODA Z WZORCA OBSERWATOR ---
     def update(self, event_name, data=None):
         if self.in_minigame:
-            # Podczas trwania minigry nie przerysowujemy widoku Tamagotchi,
-            # aby uniknąć migotania i nakładania się napisów (np. "Kasa" na "Wynik").
+            # Podczas minigry nie przerysowujemy widoku Tamagotchi,
+            # aby uniknąć migotania i nakładania się napisów.
             return
+
+        msg = messages.message_for(event_name, data)
+        if msg:
+            self.message.set(*msg)
 
         if event_name == "stats_changed":
-            self.draw_stats()
-            self.draw_art()
-
+            self._redraw(self.stats, self.pet_panel)
         elif event_name == "pet_died":
-            self._set_message("Zwierzak umarl (X_X). Wybierz 'Odrodz', by go wskrzesic!", "bad")
             self.full_redraw()
-
         elif event_name == "pet_resurrected":
-            self._set_message("Magia! Zwierzak dostal drugie zycie!", "good")
-            self.draw_message()
-            self.draw_art()
-
+            self._redraw(self.message, self.pet_panel)
         elif event_name.startswith("action_"):
-            if event_name == "action_play":
-                if isinstance(data, dict):
-                    score = data.get("score", 0)
-                    money = data.get("money", 0)
-                    if data.get("is_new_record") and score > 0:
-                        self._set_message(f"NOWY REKORD ({score} pkt)! Zdobyto +{money}$!", "good")
-                    elif score > 0:
-                        self._set_message(f"Super bieg! Przeskoczono {score} przeszkod (+{money}$).", "good")
-                    else:
-                        self._set_message("Koniec biegu! Nastepnym razem pojdzie lepiej.", "warn")
-                else:
-                    self._set_message("Super zabawa!", "good")
-            else:
-                messages = {
-                    "action_feed": ("Mniam! (+Glod)", "good"),
-                    "action_sleep": ("Zzz... (+Energia)", "sleepy"),
-                    "action_buy_success": (f"Kupiono i zjedzono: {data}!", "good"),
-                    "action_buy_fail": (f"Za malo kasy na: {data}! Baw sie, by zarobic.", "bad"),
-                    "action_skin_bought": (f"Kupiono skorke: {skin_name(data)}! Zwierzak juz ja nosi.", "good"),
-                    "action_skin_buy_fail": (f"Za malo kasy na skorke: {skin_name(data)}!", "bad"),
-                    "action_skin_equipped": (f"Zalozono skorke: {skin_name(data)}.", "info"),
-                }
-                if event_name in messages:
-                    self._set_message(*messages[event_name])
-            self.draw_stats()  # Kasa lub statystyki mogły się zmienić
-            self.draw_message()
-            self.draw_art()
-            self.draw_menu()   # Zmiana kasy zmienia, na co nas stać w sklepie
+            # Kasa lub statystyki mogły się zmienić, a z nimi to, na co nas stać w sklepie
+            self._redraw(self.stats, self.message, self.pet_panel, self.menu)
 
-    # --- POMOCNICZE ---
-    def _set_message(self, text, style_name):
-        self.current_message = text
-        self.message_style = style_name
-
-    def _put(self, y, x, text, attr=curses.A_NORMAL):
-        """Bezpieczny addstr - za małe okno nie wywraca gry."""
-        try:
-            self.stdscr.addstr(y, x, text, attr)
-        except curses.error:
-            pass
-
-    def _hline(self, y, x, ch, n):
-        if n > 0:
-            try:
-                self.stdscr.hline(y, x, ch, n)
-            except curses.error:
-                pass
-
-    def _fill(self, y, x, width):
-        """Czyści fragment wiersza wewnątrz panelu (nie rusza ramek obok)."""
-        self._put(y, x, " " * width)
-
-    def _clear_inside(self, box):
-        y, x, h, w = box
-        for row in range(y + 1, y + h - 1):
-            self._fill(row, x + 1, w - 2)
-
-    def _draw_box(self, box, title):
-        y, x, h, w = box
-        a = self.style["frame"]
-        try:
-            self.stdscr.addch(y, x, _acs("ULCORNER", "+") | a)
-            self.stdscr.addch(y, x + w - 1, _acs("URCORNER", "+") | a)
-            self.stdscr.addch(y + h - 1, x, _acs("LLCORNER", "+") | a)
-            self.stdscr.addch(y + h - 1, x + w - 1, _acs("LRCORNER", "+") | a)
-            self.stdscr.vline(y + 1, x, _acs("VLINE", "|") | a, h - 2)
-            self.stdscr.vline(y + 1, x + w - 1, _acs("VLINE", "|") | a, h - 2)
-        except curses.error:
-            pass
-        self._hline(y, x + 1, _acs("HLINE", "-") | a, w - 2)
-        self._hline(y + h - 1, x + 1, _acs("HLINE", "-") | a, w - 2)
-        self._put(y, x + 2, f" {title} ", self.style["title"])
-
-    def _label(self, action):
-        if action.startswith("buy:"):
-            name = action[len("buy:"):]
-            return f"{name}({self.pet.shop_items[name]['price']}$)"
-        if action.startswith("skin:"):
-            skin_id = action[len("skin:"):]
-            if skin_id == self.pet.active_skin:
-                return f"{skin_name(skin_id)}*"   # * = aktualnie założona
-            if self.pet.owns_skin(skin_id):
-                return skin_name(skin_id)
-            return f"{skin_name(skin_id)}({SKIN_PRICES[skin_id]}$)"
-        return ACTION_LABELS.get(action, action)
-
-    def _can_afford(self, action):
-        if action.startswith("buy:"):
-            return self.pet.money >= self.pet.shop_items[action[len("buy:"):]]["price"]
-        if action.startswith("skin:"):
-            skin_id = action[len("skin:"):]
-            return self.pet.owns_skin(skin_id) or self.pet.money >= SKIN_PRICES[skin_id]
-        return True
-
-    def _hovered_skin(self):
-        """Skórka zaznaczona w menu skórek (do podglądu) albo None."""
-        if 0 <= self.selected_idx < len(self.menu_items):
-            action = self.menu_items[self.selected_idx]
-            if action.startswith("skin:"):
-                return action[len("skin:"):]
-        return None
-
-    def _draw_bar(self, y, x, label, value):
-        """Rysuje np.:  Energia   ██████████▒▒▒▒▒  67%  (kolor zależny od wartości)"""
-        value = round(value)
-        filled = round(value * BAR_WIDTH / 100)
-        self._put(y, x, label.ljust(LABEL_WIDTH), self.style["text"])
-        bar_x = x + LABEL_WIDTH
-        self._hline(y, bar_x, _acs("BLOCK", "#") | self._stat_style(value), filled)
-        self._hline(y, bar_x + filled, _acs("CKBOARD", "-") | self.style["empty"], BAR_WIDTH - filled)
-        self._put(y, bar_x + BAR_WIDTH, f"{value:4}%", self._stat_style(value))
-
-    # --- RYSOWANIE POSZCZEGÓLNYCH SEKCJI ---
-    def draw_menu(self):
-        if self.too_small:
-            return
-        y, x, h, w = MENU_BOX
-        self._clear_inside(MENU_BOX)
-        labels = [f" {self._label(a)} " for a in self.menu_items]
-        inner = w - 4
-        if all(i * MENU_SPACING + len(l) <= inner for i, l in enumerate(labels)):
-            xs = [i * MENU_SPACING for i in range(len(labels))]
-        else:
-            # Długie menu (np. sklep ze skórkami) - pozycje ciasno jedna za drugą
-            gap = max(0, (inner - sum(map(len, labels))) // max(1, len(labels) - 1))
-            xs, pos = [], 0
-            for l in labels:
-                xs.append(pos)
-                pos += len(l) + gap
-        for i, action in enumerate(self.menu_items):
-            if i == self.selected_idx:
-                attr = self.style["selected"]
-            elif not self._can_afford(action):
-                attr = self.style["disabled"]
-            else:
-                attr = self.style["text"]
-            self._put(y + 1, x + 2 + xs[i], labels[i], attr)
-        self.stdscr.refresh()
-
-    def draw_stats(self):
-        if self.too_small:
-            return
-        y, x, h, w = STATS_BOX
-        cx = x + 2
-        self._clear_inside(STATS_BOX)
-        self._put(y + 1, cx, "Kasa:", self.style["text"])
-        self._put(y + 1, cx + LABEL_WIDTH, f"{self.pet.money}$", self.style["money"])
-        self._put(y + 2, cx, "Rekord:", self.style["text"])
-        self._put(y + 2, cx + LABEL_WIDTH, f"{self.pet.high_score} pkt", self.style["good"])
-        self._draw_bar(y + 3, cx, "Glod", self.pet.hunger)
-        self._draw_bar(y + 4, cx, "Energia", self.pet.energy)
-        self._draw_bar(y + 5, cx, "Szczescie", self.pet.happiness)
-        self._draw_bar(y + 6, cx, "Zdrowie", self.pet.health)
-        self.stdscr.refresh()
-
-    def draw_art(self):
-        """Dynamiczny ASCII Art zależny od statystyk z Modelu"""
-        if self.too_small:
-            return
-        caption, style = MOODS[self.pet.mood]
-        skin_id = self.pet.active_skin
-        preview = self._hovered_skin()
-        if preview:
-            skin_id, caption = preview, f"Podglad: {skin_name(preview)}"
-        art = render_skin(skin_id, self.pet.mood)
-
-        y, x, h, w = PET_BOX
-        self._clear_inside(PET_BOX)  # Czyść tylko panel zwierzaka
-        art_x = x + (w - len(art[0])) // 2
-        for i, line in enumerate(art):
-            self._put(y + 2 + i, art_x, line, self.style[style])
-        self._put(y + h - 2, x + (w - len(caption)) // 2, caption, self.style[style])
-        self.stdscr.refresh()
-
-    def draw_message(self):
-        if self.too_small:
-            return
-        y, x, h, w = MESSAGE_BOX
-        self._clear_inside(MESSAGE_BOX)  # Czyść tylko linijkę z wiadomością
-        text = f"> {self.current_message}"[: w - 4]
-        self._put(y + 1, x + 2, text, self.style[self.message_style])
-        self.stdscr.refresh()
+    # --- RYSOWANIE ---
+    @staticmethod
+    def _redraw(*panels):
+        for panel in panels:
+            panel.redraw()
 
     def full_redraw(self):
-        self.stdscr.erase()
-        rows, cols = self.stdscr.getmaxyx()
-        self.too_small = rows < SCREEN_H or cols < SCREEN_W
-        if self.too_small:
-            self._put(0, 0, f"Powieksz okno terminala (min. {SCREEN_W}x{SCREEN_H}).", self.style["bad"])
-            self.stdscr.refresh()
+        c = self.canvas
+        c.erase()
+        c.too_small = not c.fits(SCREEN_H, SCREEN_W)
+        if c.too_small:
+            c.put(0, 0, TOO_SMALL, c.style["bad"])
+            c.refresh()
             return
 
-        self._draw_box(STATS_BOX, "Statystyki")
-        self._draw_box(PET_BOX, self.pet.name)
-        self._draw_box(MESSAGE_BOX, "Komunikat")
-        self._draw_box(MENU_BOX, "Menu")
-        self._put(ROW_HINT, 2, HINT, self.style["hint"])
+        for panel in self.panels:
+            panel.draw_frame()
+        c.put(ROW_HINT, 2, HINT, c.style["hint"])
+        self._redraw(*self.panels)
 
-        self.draw_stats()
-        self.draw_art()
-        self.draw_message()
-        self.draw_menu()
-
-    # --- OBSŁUGA MINIGRY CHROME DINO ---
-
+    # --- MINIGRA ---
     def start_minigame(self, game):
-        """Przygotowuje ekran i ustawia krótki timeout curses dla płynnej animacji minigry."""
+        """Przygotowuje ekran i ustawia krótki timeout curses dla płynnej animacji."""
         self.in_minigame = True
-        self.minigame_tick_ms = 45  # ~22 FPS
-        self.stdscr.timeout(self.minigame_tick_ms)
-        self.stdscr.erase()
-        self.stdscr.refresh()
-
-    def get_minigame_command(self):
-        """Odczytuje klawisz w trybie minigry (skok lub wyjście)."""
-        key = self.stdscr.getch()
-        if key == getattr(curses, "KEY_RESIZE", None):
-            if sys.platform == "win32":
-                try:
-                    curses.resize_term(0, 0)
-                except curses.error:
-                    pass
-            return None
-
-        # Klawisze skoku: Spacja, Strzałka w górę, 'w', 'W', Enter
-        if key in (ord(" "), curses.KEY_UP, ord("w"), ord("W"), 10, 13, curses.KEY_ENTER):
-            return "JUMP"
-
-        # Klawisze wyjścia: Esc, 'q', 'Q'
-        if key in (27, ord("q"), ord("Q")):
-            return "QUIT"
-
-        return None
+        self.stdscr.timeout(MINIGAME_TICK_MS)
+        self.canvas.erase()
+        self.canvas.refresh()
 
     def draw_minigame(self, game):
-        """Rysuje klatkę minigry na ekranie konsoli za pomocą tekstowych propsów.
-
-        W wersji graficznej metoda ta po prostu rysowałaby odpowiednie sprite'y
-        na powierzchni okna (np. Pygame surface).
-        """
-        self.stdscr.erase()
-        rows, cols = self.stdscr.getmaxyx()
-        if rows < SCREEN_H or cols < SCREEN_W:
-            self._put(0, 0, f"Powieksz okno terminala (min. {SCREEN_W}x{SCREEN_H}).", self.style["bad"])
-            self.stdscr.refresh()
-            return
-
-        box = (0, 0, SCREEN_H, SCREEN_W)
-        self._draw_box(box, "Mini-gra: Zabawa (Chrome Dino)")
-
-        # Pasek statusu (wynik, rekord, zarobione monety)
-        status_text = f"Wynik: {game.score}    Rekord: {game.high_score}    Zdobyte monety: +{game.money_earned}$"
-        self._put(1, 3, status_text, self.style["title"])
-        self._hline(2, 1, _acs("HLINE", "-") | self.style["frame"], SCREEN_W - 2)
-
-        ground_row = 10
-
-        # Chmury w tle
-        for cloud in game.clouds:
-            prop = PROPS.get(cloud.prop_id)
-            if prop:
-                self._draw_prop_at(prop, cloud.x, cloud.y, ground_row=ground_row)
-
-        # Podłoże (ziemia)
-        self._hline(ground_row, 1, _acs("HLINE", "=") | self.style["frame"], SCREEN_W - 2)
-
-        # Przeszkody
-        for obs in game.obstacles:
-            prop = PROPS.get(obs.prop_id)
-            if prop:
-                self._draw_prop_at(prop, obs.x, obs.y, ground_row=ground_row)
-
-        # Gracz
-        player_entity = game.get_player_entity()
-        player_prop = get_player_prop(self.pet.active_skin, player_entity.prop_id)
-        if player_prop:
-            self._draw_prop_at(player_prop, player_entity.x, player_entity.y, ground_row=ground_row)
-
-        # Dolny pasek podpowiedzi
-        self._hline(12, 1, _acs("HLINE", "-") | self.style["frame"], SCREEN_W - 2)
-        hint = "Spacja / Strzalka w gore: SKOK       Esc / q: WYJSCIE"
-        self._put(13, 3, hint, self.style["hint"])
-
-        self.stdscr.refresh()
-
-    def _draw_prop_at(self, prop, entity_x, entity_y, ground_row):
-        """Rysuje linie danego TextProp w odpowiednim miejscu na ekranie konsoli.
-        W przyszłości w wersji graficznej zamienia się to na blit tekstury/sprite'a!
-        """
-        base_x = 2 + round(entity_x)
-        # y=0 oznacza stopę na poziomie (ground_row - 1)
-        bottom_row = ground_row - 1 - round(entity_y)
-        top_row = bottom_row - prop.height + 1
-
-        for i, line in enumerate(prop.lines):
-            row = top_row + i
-            if 3 <= row <= ground_row - 1:  # Tylko wewnątrz pola gry
-                for col_idx, ch in enumerate(line):
-                    col = base_x + col_idx
-                    if 1 < col < SCREEN_W - 1 and ch != " ":
-                        self._put(row, col, ch, self.style.get(prop.style, self.style["text"]))
+        self.minigame.draw(game)
 
     def show_minigame_game_over(self, game):
-        """Ekran podsumowania po uderzeniu w przeszkodę."""
-        self.draw_minigame(game)
-
-        box_w = 48
-        box_h = 9
-        box_y = (SCREEN_H - box_h) // 2
-        box_x = (SCREEN_W - box_w) // 2
-
-        self._draw_box((box_y, box_x, box_h, box_w), "KONIEC GRY!")
-        self._clear_inside((box_y, box_x, box_h, box_w))
-
-        msg_score = f"Przeskoczone przeszkody: {game.score}"
-        msg_money = f"Zdobyte monety:          +{game.money_earned}$"
-        msg_record = f"Najlepszy wynik (Rekord): {game.high_score}"
-
-        self._put(box_y + 2, box_x + 4, msg_score, self.style["info"])
-        self._put(box_y + 3, box_x + 4, msg_money, self.style["good"] if game.money_earned > 0 else self.style["text"])
-        self._put(box_y + 4, box_x + 4, msg_record, self.style["title"])
-
-        if game.is_new_high_score and game.score > 0:
-            self._put(box_y + 5, box_x + 4, "*** NOWY REKORD! GRATULACJE! ***", self.style["good"])
-
-        self._put(box_y + 7, box_x + 4, "Nacisnij dowolny klawisz, aby wrocic...", self.style["hint"])
-        self.stdscr.refresh()
-
+        """Ekran podsumowania; czeka na dowolny klawisz."""
+        self.minigame.draw_game_over(game)
         # Krótkie opóźnienie, by zapobiec przypadkowemu kliknięciu podczas skoku
         curses.napms(350)
         self.stdscr.timeout(-1)

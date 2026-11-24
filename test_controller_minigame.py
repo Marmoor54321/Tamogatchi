@@ -123,7 +123,7 @@ class TestGameControllerMinigame(unittest.TestCase):
 
         # Symulujemy zdarzenie stats_changed (np. pass_time zwierzaka)
         stats_drawn = [False]
-        view.draw_stats = lambda: stats_drawn.__setitem__(0, True)
+        view.stats.redraw = lambda: stats_drawn.__setitem__(0, True)
 
         view.update("stats_changed")
         self.assertFalse(stats_drawn[0], "draw_stats NIE może być wywoływany w trakcie minigry!")
