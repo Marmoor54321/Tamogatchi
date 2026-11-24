@@ -38,12 +38,6 @@ class Pet(Observable):
         self.last_update = datetime.now()
         self.save_file = "save.json"
 
-        self.shop_items = {
-            "Jablko": {"price": 10, "hunger": 20, "energy": 5},
-            "Burger": {"price": 30, "hunger": 60, "energy": -10},  # Burger daje dużo głodu, ale męczy
-            "Kawa": {"price": 20, "hunger": 5, "energy": 40}  # Kawa daje energię
-        }
-
     def _clamp(self, value):
         """Pomocnicza metoda trzymająca statystyki w ryzach (0-100).
         Wartości są zmiennoprzecinkowe, żeby małe przyrosty czasu się sumowały."""
@@ -121,21 +115,26 @@ class Pet(Observable):
         self.notify_observers("pet_resurrected")
         self.notify_observers("stats_changed")
 
-    def buy_and_feed(self, item_name):
-        if not self.is_alive: return
-        if item_name not in self.shop_items: return
+    # --- KASA I EFEKTY (używa ich np. sklep z model/shop.py) ---
 
-        item = self.shop_items[item_name]
+    def spend(self, amount):
+        """Odejmuje kasę, jeśli zwierzaka na to stać. Zwraca True, gdy się udało."""
+        if amount < 0 or self.money < amount:
+            return False
+        self.money -= amount
+        return True
 
-        if self.money >= item["price"]:
-            self.money -= item["price"]
-            self._update_stat("hunger", item["hunger"])
-            self._update_stat("energy", item["energy"])
-            # Wysyłamy do widoku sygnał sukcesu wraz z nazwą przedmiotu (jako 'data')
-            self.notify_observers("action_buy_success", item_name)
-        else:
-            # Wysyłamy sygnał o braku środków
-            self.notify_observers("action_buy_fail", item_name)
+    def apply_effects(self, effects):
+        """Zmienia kilka statystyk naraz, np. {"hunger": 20, "energy": -5}.
+        Widok dostaje jedno zdarzenie "stats_changed" zamiast kilku."""
+        if not self.is_alive:
+            return
+        for stat, amount in effects.items():
+            setattr(self, stat, self._clamp(getattr(self, stat) + amount))
+        if self.health == 0:
+            self.is_alive = False
+            self.notify_observers("pet_died")
+        self.notify_observers("stats_changed")
 
     # --- SKÓRKI ---
 
@@ -154,22 +153,12 @@ class Pet(Observable):
     def owns_skin(self, skin_id):
         return skin_id in self.owned_skins
 
-    def buy_skin(self, skin_id):
-        """Kupuje skórkę i od razu ją zakłada."""
-        if not self.is_alive or skin_id not in SKIN_PRICES:
+    def unlock_skin(self, skin_id):
+        """Dodaje skórkę do kolekcji i ją zakłada (płaci za nią sklep)."""
+        if skin_id not in SKIN_PRICES:
             return False
-        if self.owns_skin(skin_id):
-            return self.equip_skin(skin_id)
-
-        price = SKIN_PRICES[skin_id]
-        if self.money < price:
-            self.notify_observers("action_skin_buy_fail", skin_id)
-            return False
-
-        self.money -= price
         self.owned_skins.add(skin_id)
         self.active_skin = skin_id
-        self.notify_observers("action_skin_bought", skin_id)
         return True
 
     def equip_skin(self, skin_id):

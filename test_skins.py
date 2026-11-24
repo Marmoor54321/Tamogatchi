@@ -7,6 +7,7 @@ import unittest
 from controller.game_controller import GameController
 from model.observer import Observer
 from model.pet import Pet
+from model.shop import Shop
 from model.skins import DEFAULT_SKIN, SKIN_PRICES
 
 
@@ -27,6 +28,7 @@ class FakeView:
 class SkinModelTest(unittest.TestCase):
     def setUp(self):
         self.pet = Pet("Test")
+        self.shop = Shop(self.pet)
         self.spy = EventSpy()
         self.pet.add_observer(self.spy)
 
@@ -37,7 +39,7 @@ class SkinModelTest(unittest.TestCase):
 
     def test_buy_takes_money_and_equips(self):
         self.pet.money = 150
-        self.assertTrue(self.pet.buy_skin("kotek"))
+        self.assertTrue(self.shop.buy_skin("kotek"))
         self.assertEqual(self.pet.money, 150 - SKIN_PRICES["kotek"])
         self.assertTrue(self.pet.owns_skin("kotek"))
         self.assertEqual(self.pet.active_skin, "kotek")
@@ -45,22 +47,22 @@ class SkinModelTest(unittest.TestCase):
 
     def test_cannot_buy_without_money(self):
         self.pet.money = 10
-        self.assertFalse(self.pet.buy_skin("robot"))
+        self.assertFalse(self.shop.buy_skin("robot"))
         self.assertEqual(self.pet.money, 10)
         self.assertFalse(self.pet.owns_skin("robot"))
         self.assertIn(("action_skin_buy_fail", "robot"), self.spy.events)
 
     def test_owned_skin_is_not_paid_twice(self):
         self.pet.money = 100
-        self.pet.buy_skin("kotek")
+        self.shop.buy_skin("kotek")
         self.pet.equip_skin(DEFAULT_SKIN)
-        self.pet.buy_skin("kotek")
+        self.shop.buy_skin("kotek")
         self.assertEqual(self.pet.money, 0)
         self.assertEqual(self.pet.active_skin, "kotek")
 
     def test_cannot_equip_unowned_or_unknown(self):
         self.assertFalse(self.pet.equip_skin("robot"))
-        self.assertFalse(self.pet.buy_skin("nie_ma_takiej"))
+        self.assertFalse(self.shop.buy_skin("nie_ma_takiej"))
         self.assertEqual(self.pet.active_skin, DEFAULT_SKIN)
 
     def test_mood(self):
@@ -77,7 +79,7 @@ class SkinModelTest(unittest.TestCase):
             path = os.path.join(tmp, "save.json")
             self.pet.save_file = path
             self.pet.money = 500
-            self.pet.buy_skin("krolik")
+            self.shop.buy_skin("krolik")
             self.pet.save_state()
 
             loaded = Pet("Test")

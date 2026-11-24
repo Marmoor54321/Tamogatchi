@@ -1,5 +1,7 @@
 # test_controller_minigame.py
 """Test integracji GameController z minigrą Dino i modelem Pet (symulacja widoku)."""
+import os
+import tempfile
 import unittest
 from model.pet import Pet
 from controller.game_controller import GameController
@@ -49,6 +51,7 @@ class TestGameControllerMinigame(unittest.TestCase):
         pet = Pet("Reksio")
         pet.money = 0
         pet.high_score = 0
+        pet.save_file = os.path.join(tempfile.mkdtemp(), "save.json")  # Nie nadpisuj prawdziwego zapisu
         view = MockView()
         controller = GameController(pet, view)
 

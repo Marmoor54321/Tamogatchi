@@ -1,7 +1,7 @@
 ﻿# controller/game_controller.py
 import time
 from model.observer import Observer
-from model.skins import SKIN_PRICES
+from model.shop import Shop
 
 # Menu to listy identyfikatorów akcji - napisy do wyświetlenia zna tylko widok.
 MAIN_MENU = ["shop", "play", "sleep", "exit"]
@@ -18,13 +18,16 @@ class GameController(Observer):
     Dzięki temu wersja graficzna wymaga jedynie nowej klasy widoku.
     """
 
-    def __init__(self, model, view):
+    def __init__(self, model, view, shop=None):
         self.model = model
         self.view = view
+        self.shop = shop or Shop(model)
 
         self.main_menu = list(MAIN_MENU)
-        self.shop_menu = [f"buy:{name}" for name in model.shop_items] + ["skins", "back"]
-        self.skins_menu = [f"skin:{skin_id}" for skin_id in SKIN_PRICES] + ["back"]
+        # Menu sklepu buduje się samo z katalogu - nowy przedmiot w model/shop.py
+        # od razu pojawia się w grze
+        self.shop_menu = [f"buy:{item_id}" for item_id in self.shop.items] + ["skins", "back"]
+        self.skins_menu = [f"skin:{skin_id}" for skin_id in self.shop.skin_prices] + ["back"]
         self.death_menu = list(DEATH_MENU)
 
         # Zwierzak mógł umrzeć podczas nieobecności gracza (wczytany zapis)
@@ -103,17 +106,17 @@ class GameController(Observer):
             self._open_menu(self.skins_menu)
         elif action.startswith("skin:"):
             skin_id = action[len("skin:"):]
-            # Kupiona -> zakładamy, niekupiona -> próbujemy kupić (model sprawdzi kasę)
+            # Kupiona -> zakładamy, niekupiona -> sklep próbuje sprzedać
             if self.model.owns_skin(skin_id):
                 self.model.equip_skin(skin_id)
             else:
-                self.model.buy_skin(skin_id)
+                self.shop.buy_skin(skin_id)
         elif action == "play":
             self._play_minigame()
         elif action == "sleep":
             self.model.sleep()
         elif action.startswith("buy:"):
-            self.model.buy_and_feed(action[len("buy:"):])
+            self.shop.buy(action[len("buy:"):])
 
     def _play_minigame(self):
         """Uruchamia minigrę typu Chrome Dino.

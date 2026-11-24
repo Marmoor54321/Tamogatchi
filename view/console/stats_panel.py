@@ -4,6 +4,14 @@ from view.console.layout import STATS_BOX
 from view.console.panel import Panel
 
 BAR_WIDTH = 15
+
+# Nazwy statystyk modelu wyświetlane graczowi (używa ich też opis przedmiotów w sklepie)
+STAT_LABELS = {
+    "hunger": "Glod",
+    "energy": "Energia",
+    "happiness": "Szczescie",
+    "health": "Zdrowie",
+}
 LABEL_WIDTH = 10
 
 
@@ -22,10 +30,8 @@ class StatsPanel(Panel):
         c.put(y + 1, cx + LABEL_WIDTH, f"{self.pet.money}$", s["money"])
         c.put(y + 2, cx, "Rekord:", s["text"])
         c.put(y + 2, cx + LABEL_WIDTH, f"{self.pet.high_score} pkt", s["good"])
-        self._draw_bar(y + 3, cx, "Glod", self.pet.hunger)
-        self._draw_bar(y + 4, cx, "Energia", self.pet.energy)
-        self._draw_bar(y + 5, cx, "Szczescie", self.pet.happiness)
-        self._draw_bar(y + 6, cx, "Zdrowie", self.pet.health)
+        for row, stat in enumerate(STAT_LABELS, start=3):
+            self._draw_bar(y + row, cx, STAT_LABELS[stat], getattr(self.pet, stat))
 
     def _draw_bar(self, y, x, label, value):
         """Rysuje np.:  Energia   ██████████▒▒▒▒▒  67%  (kolor zależny od wartości)"""

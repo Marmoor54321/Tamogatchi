@@ -8,6 +8,7 @@ z modelu i mówi odpowiednim panelom, żeby się przerysowały.
 import curses
 
 from model.observer import Observer
+from model.shop import Shop
 from view.console import messages
 from view.console.canvas import Canvas
 from view.console.keys import MENU_KEYS, MINIGAME_KEYS, RESIZE, read_key
@@ -22,7 +23,7 @@ MINIGAME_TICK_MS = 45  # ~22 FPS
 
 
 class ConsoleView(Observer):
-    def __init__(self, stdscr, pet, tick_ms=500):
+    def __init__(self, stdscr, pet, shop=None, tick_ms=500):
         self.stdscr = stdscr
         self.pet = pet
         self.tick_ms = tick_ms
@@ -48,7 +49,7 @@ class ConsoleView(Observer):
         self.stats = StatsPanel(self.canvas, pet)
         self.pet_panel = PetPanel(self.canvas, pet)
         self.message = MessagePanel(self.canvas)
-        self.menu = MenuPanel(self.canvas, pet)
+        self.menu = MenuPanel(self.canvas, pet, shop or Shop(pet))
         self.panels = [self.stats, self.pet_panel, self.message, self.menu]
         self.minigame = MinigameScreen(self.canvas, pet)
 
@@ -74,10 +75,12 @@ class ConsoleView(Observer):
         """Wyświetla podane menu (identyfikatory akcji) z zaznaczoną pozycją."""
         self.menu.set_items(items, selected_idx)
         self.pet_panel.preview_skin = self.menu.hovered_skin()  # Podgląd w sklepie skórek
+        self.message.show_hint(self.menu.describe_hovered())    # Co daje zaznaczony przedmiot
         if self.in_minigame:
             return  # Narysuje się po wyjściu z minigry (end_minigame)
         self.menu.redraw()
         self.pet_panel.redraw()
+        self.message.redraw()
 
     # --- METODA Z WZORCA OBSERWATOR ---
     def update(self, event_name, data=None):

@@ -4,18 +4,32 @@ from view.console.panel import Panel
 
 
 class MessagePanel(Panel):
-    """Jedna linijka z ostatnim komunikatem dla gracza."""
+    """Jedna linijka z ostatnim komunikatem dla gracza.
+
+    Zamiast komunikatu może pokazywać podpowiedź (np. co daje przedmiot,
+    na którym stoi kursor w sklepie). Nowy komunikat chowa podpowiedź,
+    żeby gracz zobaczył wynik swojej akcji.
+    """
 
     def __init__(self, canvas):
         super().__init__(canvas, MESSAGE_BOX, "Komunikat")
         self.text = ""
         self.style_name = "info"
+        self.hint = None   # (tekst, styl) albo None
 
     def set(self, text, style_name):
         self.text = text
         self.style_name = style_name
+        self.hint = None
+
+    def show_hint(self, hint):
+        """Ustawia podpowiedź (tekst, styl) albo None, żeby wrócić do komunikatu."""
+        self.hint = hint
 
     def draw_content(self):
         y, x, _, w = self.box
-        text = f"> {self.text}"[: w - 4]
-        self.canvas.put(y + 1, x + 2, text, self.canvas.style[self.style_name])
+        if self.hint:
+            text, style_name = f"? {self.hint[0]}", self.hint[1]
+        else:
+            text, style_name = f"> {self.text}", self.style_name
+        self.canvas.put(y + 1, x + 2, text[: w - 4], self.canvas.style[style_name])

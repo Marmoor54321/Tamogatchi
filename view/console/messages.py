@@ -1,6 +1,12 @@
 # view/console/messages.py
 """Zdarzenie z modelu -> (treść komunikatu, nazwa stylu) albo None."""
+from model.shop import SHOP_ITEMS
 from view.skin_art import skin_name
+
+
+def _item_name(item_id):
+    item = SHOP_ITEMS.get(item_id)
+    return item.name if item else item_id
 
 
 def _play_message(data):
@@ -21,8 +27,8 @@ _MESSAGES = {
     "action_play": _play_message,
     "action_feed": lambda d: ("Mniam! (+Glod)", "good"),
     "action_sleep": lambda d: ("Zzz... (+Energia)", "sleepy"),
-    "action_buy_success": lambda d: (f"Kupiono i zjedzono: {d}!", "good"),
-    "action_buy_fail": lambda d: (f"Za malo kasy na: {d}! Baw sie, by zarobic.", "bad"),
+    "action_buy_success": lambda d: (f"Kupiono i uzyto: {_item_name(d)}!", "good"),
+    "action_buy_fail": lambda d: (f"Za malo kasy na: {_item_name(d)}! Baw sie, by zarobic.", "bad"),
     "action_skin_bought": lambda d: (f"Kupiono skorke: {skin_name(d)}! Zwierzak juz ja nosi.", "good"),
     "action_skin_buy_fail": lambda d: (f"Za malo kasy na skorke: {skin_name(d)}!", "bad"),
     "action_skin_equipped": lambda d: (f"Zalozono skorke: {skin_name(d)}.", "info"),
