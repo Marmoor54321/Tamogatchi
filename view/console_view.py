@@ -2,6 +2,7 @@
 import curses
 import sys
 from model.observer import Observer
+from view.minigame_props import PROPS
 
 # Tłumaczenie klawiszy na abstrakcyjne komendy rozumiane przez kontroler.
 # Kontroler nie wie nic o curses - widok GUI może generować te same komendy
@@ -54,10 +55,15 @@ class ConsoleView(Observer):
     def __init__(self, stdscr, pet, tick_ms=500):
         self.stdscr = stdscr
         self.pet = pet
+        self.tick_ms = tick_ms
+        self.in_minigame = False
         # Podpinamy ten widok jako obserwatora naszego zwierzaka
         self.pet.add_observer(self)
 
-        curses.curs_set(0)  # Ukryj migający kursor konsoli
+        try:
+            curses.curs_set(0)  # Ukryj migający kursor konsoli
+        except curses.error:
+            pass
         # get_command() czeka na klawisz maksymalnie tyle ms,
         # dzięki czemu czas w grze płynie także wtedy, gdy nic nie naciskamy.
         self.stdscr.timeout(tick_ms)
@@ -153,6 +159,11 @@ class ConsoleView(Observer):
 
     # --- METODA Z WZORCA OBSERWATOR ---
     def update(self, event_name, data=None):
+        if self.in_minigame:
+            # Podczas trwania minigry nie przerysowujemy widoku Tamagotchi,
+            # aby uniknąć migotania i nakładania się napisów (np. "Kasa" na "Wynik").
+            return
+
         if event_name == "stats_changed":
             self.draw_stats()
             self.draw_art()
@@ -167,15 +178,27 @@ class ConsoleView(Observer):
             self.draw_art()
 
         elif event_name.startswith("action_"):
-            messages = {
-                "action_feed": ("Mniam! (+Glod)", "good"),
-                "action_play": (f"Super zabawa! (+Szczescie, -Energia, +{self.pet.PLAY_REWARD}$)", "good"),
-                "action_sleep": ("Zzz... (+Energia)", "sleepy"),
-                "action_buy_success": (f"Kupiono i zjedzono: {data}!", "good"),
-                "action_buy_fail": (f"Za malo kasy na: {data}! Baw sie, by zarobic.", "bad"),
-            }
-            if event_name in messages:
-                self._set_message(*messages[event_name])
+            if event_name == "action_play":
+                if isinstance(data, dict):
+                    score = data.get("score", 0)
+                    money = data.get("money", 0)
+                    if data.get("is_new_record") and score > 0:
+                        self._set_message(f"NOWY REKORD ({score} pkt)! Zdobyto +{money}$!", "good")
+                    elif score > 0:
+                        self._set_message(f"Super bieg! Przeskoczono {score} przeszkod (+{money}$).", "good")
+                    else:
+                        self._set_message("Koniec biegu! Nastepnym razem pojdzie lepiej.", "warn")
+                else:
+                    self._set_message("Super zabawa!", "good")
+            else:
+                messages = {
+                    "action_feed": ("Mniam! (+Glod)", "good"),
+                    "action_sleep": ("Zzz... (+Energia)", "sleepy"),
+                    "action_buy_success": (f"Kupiono i zjedzono: {data}!", "good"),
+                    "action_buy_fail": (f"Za malo kasy na: {data}! Baw sie, by zarobic.", "bad"),
+                }
+                if event_name in messages:
+                    self._set_message(*messages[event_name])
             self.draw_stats()  # Kasa lub statystyki mogły się zmienić
             self.draw_message()
             self.draw_art()
@@ -270,6 +293,8 @@ class ConsoleView(Observer):
         self._clear_inside(STATS_BOX)
         self._put(y + 1, cx, "Kasa:", self.style["text"])
         self._put(y + 1, cx + LABEL_WIDTH, f"{self.pet.money}$", self.style["money"])
+        self._put(y + 2, cx, "Rekord:", self.style["text"])
+        self._put(y + 2, cx + LABEL_WIDTH, f"{self.pet.high_score} pkt", self.style["good"])
         self._draw_bar(y + 3, cx, "Glod", self.pet.hunger)
         self._draw_bar(y + 4, cx, "Energia", self.pet.energy)
         self._draw_bar(y + 5, cx, "Szczescie", self.pet.happiness)
@@ -324,3 +349,139 @@ class ConsoleView(Observer):
         self.draw_art()
         self.draw_message()
         self.draw_menu()
+
+    # --- OBSŁUGA MINIGRY CHROME DINO ---
+
+    def start_minigame(self, game):
+        """Przygotowuje ekran i ustawia krótki timeout curses dla płynnej animacji minigry."""
+        self.in_minigame = True
+        self.minigame_tick_ms = 45  # ~22 FPS
+        self.stdscr.timeout(self.minigame_tick_ms)
+        self.stdscr.erase()
+        self.stdscr.refresh()
+
+    def get_minigame_command(self):
+        """Odczytuje klawisz w trybie minigry (skok lub wyjście)."""
+        key = self.stdscr.getch()
+        if key == getattr(curses, "KEY_RESIZE", None):
+            if sys.platform == "win32":
+                try:
+                    curses.resize_term(0, 0)
+                except curses.error:
+                    pass
+            return None
+
+        # Klawisze skoku: Spacja, Strzałka w górę, 'w', 'W', Enter
+        if key in (ord(" "), curses.KEY_UP, ord("w"), ord("W"), 10, 13, curses.KEY_ENTER):
+            return "JUMP"
+
+        # Klawisze wyjścia: Esc, 'q', 'Q'
+        if key in (27, ord("q"), ord("Q")):
+            return "QUIT"
+
+        return None
+
+    def draw_minigame(self, game):
+        """Rysuje klatkę minigry na ekranie konsoli za pomocą tekstowych propsów.
+
+        W wersji graficznej metoda ta po prostu rysowałaby odpowiednie sprite'y
+        na powierzchni okna (np. Pygame surface).
+        """
+        self.stdscr.erase()
+        rows, cols = self.stdscr.getmaxyx()
+        if rows < SCREEN_H or cols < SCREEN_W:
+            self._put(0, 0, f"Powieksz okno terminala (min. {SCREEN_W}x{SCREEN_H}).", self.style["bad"])
+            self.stdscr.refresh()
+            return
+
+        box = (0, 0, SCREEN_H, SCREEN_W)
+        self._draw_box(box, "Mini-gra: Zabawa (Chrome Dino)")
+
+        # Pasek statusu (wynik, rekord, zarobione monety)
+        status_text = f"Wynik: {game.score}    Rekord: {game.high_score}    Zdobyte monety: +{game.money_earned}$"
+        self._put(1, 3, status_text, self.style["title"])
+        self._hline(2, 1, _acs("HLINE", "-") | self.style["frame"], SCREEN_W - 2)
+
+        ground_row = 10
+
+        # Chmury w tle
+        for cloud in game.clouds:
+            prop = PROPS.get(cloud.prop_id)
+            if prop:
+                self._draw_prop_at(prop, cloud.x, cloud.y, ground_row=ground_row)
+
+        # Podłoże (ziemia)
+        self._hline(ground_row, 1, _acs("HLINE", "=") | self.style["frame"], SCREEN_W - 2)
+
+        # Przeszkody
+        for obs in game.obstacles:
+            prop = PROPS.get(obs.prop_id)
+            if prop:
+                self._draw_prop_at(prop, obs.x, obs.y, ground_row=ground_row)
+
+        # Gracz
+        player_entity = game.get_player_entity()
+        player_prop = PROPS.get(player_entity.prop_id)
+        if player_prop:
+            self._draw_prop_at(player_prop, player_entity.x, player_entity.y, ground_row=ground_row)
+
+        # Dolny pasek podpowiedzi
+        self._hline(12, 1, _acs("HLINE", "-") | self.style["frame"], SCREEN_W - 2)
+        hint = "Spacja / Strzalka w gore: SKOK       Esc / q: WYJSCIE"
+        self._put(13, 3, hint, self.style["hint"])
+
+        self.stdscr.refresh()
+
+    def _draw_prop_at(self, prop, entity_x, entity_y, ground_row):
+        """Rysuje linie danego TextProp w odpowiednim miejscu na ekranie konsoli.
+        W przyszłości w wersji graficznej zamienia się to na blit tekstury/sprite'a!
+        """
+        base_x = 2 + round(entity_x)
+        # y=0 oznacza stopę na poziomie (ground_row - 1)
+        bottom_row = ground_row - 1 - round(entity_y)
+        top_row = bottom_row - prop.height + 1
+
+        for i, line in enumerate(prop.lines):
+            row = top_row + i
+            if 3 <= row <= ground_row - 1:  # Tylko wewnątrz pola gry
+                for col_idx, ch in enumerate(line):
+                    col = base_x + col_idx
+                    if 1 < col < SCREEN_W - 1 and ch != " ":
+                        self._put(row, col, ch, self.style.get(prop.style, self.style["text"]))
+
+    def show_minigame_game_over(self, game):
+        """Ekran podsumowania po uderzeniu w przeszkodę."""
+        self.draw_minigame(game)
+
+        box_w = 48
+        box_h = 9
+        box_y = (SCREEN_H - box_h) // 2
+        box_x = (SCREEN_W - box_w) // 2
+
+        self._draw_box((box_y, box_x, box_h, box_w), "KONIEC GRY!")
+        self._clear_inside((box_y, box_x, box_h, box_w))
+
+        msg_score = f"Przeskoczone przeszkody: {game.score}"
+        msg_money = f"Zdobyte monety:          +{game.money_earned}$"
+        msg_record = f"Najlepszy wynik (Rekord): {game.high_score}"
+
+        self._put(box_y + 2, box_x + 4, msg_score, self.style["info"])
+        self._put(box_y + 3, box_x + 4, msg_money, self.style["good"] if game.money_earned > 0 else self.style["text"])
+        self._put(box_y + 4, box_x + 4, msg_record, self.style["title"])
+
+        if game.is_new_high_score and game.score > 0:
+            self._put(box_y + 5, box_x + 4, "*** NOWY REKORD! GRATULACJE! ***", self.style["good"])
+
+        self._put(box_y + 7, box_x + 4, "Nacisnij dowolny klawisz, aby wrocic...", self.style["hint"])
+        self.stdscr.refresh()
+
+        # Krótkie opóźnienie, by zapobiec przypadkowemu kliknięciu podczas skoku
+        curses.napms(350)
+        self.stdscr.timeout(-1)
+        self.stdscr.getch()
+
+    def end_minigame(self):
+        """Przywraca normalny timeout konsoli i odświeża widok Tamagotchi."""
+        self.in_minigame = False
+        self.stdscr.timeout(self.tick_ms)
+        self.full_redraw()

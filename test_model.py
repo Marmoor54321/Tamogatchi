@@ -8,9 +8,11 @@ class ConsoleSpy(Observer):
     def update(self, event_name, data=None):
         if event_name == "stats_changed":
             print("--- ZMIANA W MODELU ---")
-            print(f"Głód: {my_pet.hunger}, Energia: {my_pet.energy}, Szczęście: {my_pet.happiness}, Zdrowie: {my_pet.health}, Kasa: {my_pet.money}")
+            print(f"Głód: {my_pet.hunger}, Energia: {my_pet.energy}, Szczęście: {my_pet.happiness}, Zdrowie: {my_pet.health}, Kasa: {my_pet.money}, Rekord: {my_pet.high_score}")
         elif event_name == "action_feed":
             print(">>> ZWIERZAK COŚ ZJADŁ! <<<")
+        elif event_name == "action_play":
+            print(f">>> ZABAWA ZAKOŃCZONA: zdobyto {data.get('money', 0)}$ (wynik: {data.get('score', 0)}) <<<")
 
 # 1. Tworzymy zwierzaka
 my_pet = Pet("Reksio")
@@ -23,8 +25,8 @@ my_pet.add_observer(spy)
 print("Początek gry:")
 my_pet.notify_observers("stats_changed")
 
-print("\nBawimy się:")
-my_pet.play()
+print("\nBawimy się (wynik z minigry: 3 przeskoczone przeszkody = 30$):")
+my_pet.play(score=3)
 
 print("\nKarmimy:")
 my_pet.feed()

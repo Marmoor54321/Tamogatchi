@@ -91,11 +91,47 @@ class GameController(Observer):
         elif action == "back":
             self._open_menu(self.main_menu)
         elif action == "play":
-            self.model.play()
+            self._play_minigame()
         elif action == "sleep":
             self.model.sleep()
         elif action.startswith("buy:"):
             self.model.buy_and_feed(action[len("buy:"):])
+
+    def _play_minigame(self):
+        """Uruchamia minigrę typu Chrome Dino.
+        Zamiast natychmiastowej kasy za samo kliknięcie, gracz zdobywa 10$ za każdą przeskoczoną przeszkodę.
+        """
+        from model.dino_game import DinoGame
+        game = DinoGame(track_width=58, high_score=self.model.high_score)
+        self.view.start_minigame(game)
+        last_time = time.monotonic()
+
+        while not game.is_game_over:
+            cmd = self.view.get_minigame_command()
+            if cmd == "QUIT":
+                break
+            elif cmd == "JUMP":
+                game.jump()
+
+            now = time.monotonic()
+            dt = now - last_time
+            last_time = now
+
+            # Upływ czasu dla zwierzaka w trakcie minigry
+            self.model.pass_time(dt)
+
+            game.update(dt)
+            self.view.draw_minigame(game)
+
+        # Zapisujemy wynik zabawy w modelu (10$ za przeszkodę + aktualizacja rekordu)
+        self.model.record_minigame_result(game.score)
+
+        # Jeśli gra zakończyła się kolizją (a nie wyjściem przez ESC/Q), pokazujemy ekran końcowy
+        if game.is_game_over:
+            self.view.show_minigame_game_over(game)
+
+        self.view.end_minigame()
+        self._show_menu()
 
     def _move(self, direction):
         self.selected_idx = (self.selected_idx + direction) % len(self.menu)

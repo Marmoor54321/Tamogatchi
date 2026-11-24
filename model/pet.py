@@ -13,13 +13,14 @@ class Pet(Observable):
     HAPPINESS_DROP_PER_SEC = 1.2 / 5
     HEALTH_DROP_PER_SEC = 1.0         # gdy zwierzak jest głodny lub zmęczony
     LOW_STAT_THRESHOLD = 20           # poniżej tej wartości zwierzak traci zdrowie
-    PLAY_REWARD = 30                  # $ za zabawę
+    MONEY_PER_OBSTACLE = 10           # $ za każdą przeskoczoną przeszkodę w minigrze
 
     def __init__(self, name="Tama"):
         super().__init__()
         self.name = name
         self.is_alive = True
         self.money = 0
+        self.high_score = 0  # Najlepszy wynik w minigrze Dino
 
         # Statystyki (0-100)
         self.hunger = 100  # 100 = najedzony, 0 = głodujący
@@ -71,13 +72,36 @@ class Pet(Observable):
         self._update_stat("hunger", -10)
         self.notify_observers("action_sleep")
 
-    def play(self):
+    def play(self, score=0):
+        """Zabawa ze zwierzakiem. Za każdą przeskoczoną przeszkodę w minigrze gracz otrzymuje 10$."""
         if not self.is_alive: return
-        self._update_stat("happiness", 30)
-        self._update_stat("energy", -20)
-        self._update_stat("hunger", -20)
-        self.money += self.PLAY_REWARD  # Nagroda za zabawę!
-        self.notify_observers("action_play")
+        return self.record_minigame_result(score)
+
+    def record_minigame_result(self, score: int = 0):
+        """Aktualizuje statystyki po minigrze Dino.
+        Zamiast stałej kasy za sam przycisk, gracz otrzymuje 10$ za każdą przeszkodę.
+        """
+        if not self.is_alive: return 0
+
+        money_earned = max(0, score) * self.MONEY_PER_OBSTACLE
+        self.money += money_earned
+
+        is_new_record = score > self.high_score
+        if is_new_record:
+            self.high_score = score
+
+        # Zabawa poprawia humor, ale zwierzak męczy się i robi głodny
+        self._update_stat("happiness", 25)
+        self._update_stat("energy", -15)
+        self._update_stat("hunger", -15)
+
+        self.notify_observers("action_play", {
+            "score": score,
+            "money": money_earned,
+            "high_score": self.high_score,
+            "is_new_record": is_new_record
+        })
+        return money_earned
 
     def resurrect(self):
         self.is_alive = True
@@ -133,6 +157,7 @@ class Pet(Observable):
             "name": self.name,
             "is_alive": self.is_alive,
             "money": self.money,
+            "high_score": self.high_score,
             "hunger": self.hunger,
             "energy": self.energy,
             "happiness": self.happiness,
@@ -152,6 +177,7 @@ class Pet(Observable):
         self.name = data.get("name", self.name)
         self.is_alive = data.get("is_alive", True)
         self.money = data.get("money", 0)
+        self.high_score = data.get("high_score", 0)
         self.hunger = data.get("hunger", 100)
         self.energy = data.get("energy", 100)
         self.happiness = data.get("happiness", 100)
