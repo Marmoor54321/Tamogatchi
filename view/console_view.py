@@ -3,6 +3,8 @@ import curses
 import sys
 from model.observer import Observer
 from view.minigame_props import PROPS
+from view.skin_art import MOODS, render_skin, skin_name
+from model.skins import SKIN_PRICES
 
 # Tłumaczenie klawiszy na abstrakcyjne komendy rozumiane przez kontroler.
 # Kontroler nie wie nic o curses - widok GUI może generować te same komendy
@@ -27,6 +29,7 @@ ACTION_LABELS = {
     "exit": "Wyjście",
     "back": "Wróć",
     "resurrect": "Odródź",
+    "skins": "Skórki",
 }
 
 # --- UKŁAD EKRANU ---
@@ -156,6 +159,7 @@ class ConsoleView(Observer):
         self.menu_items = items
         self.selected_idx = selected_idx
         self.draw_menu()
+        self.draw_art()  # W menu skórek panel zwierzaka pokazuje podgląd
 
     # --- METODA Z WZORCA OBSERWATOR ---
     def update(self, event_name, data=None):
@@ -196,6 +200,9 @@ class ConsoleView(Observer):
                     "action_sleep": ("Zzz... (+Energia)", "sleepy"),
                     "action_buy_success": (f"Kupiono i zjedzono: {data}!", "good"),
                     "action_buy_fail": (f"Za malo kasy na: {data}! Baw sie, by zarobic.", "bad"),
+                    "action_skin_bought": (f"Kupiono skorke: {skin_name(data)}! Zwierzak juz ja nosi.", "good"),
+                    "action_skin_buy_fail": (f"Za malo kasy na skorke: {skin_name(data)}!", "bad"),
+                    "action_skin_equipped": (f"Zalozono skorke: {skin_name(data)}.", "info"),
                 }
                 if event_name in messages:
                     self._set_message(*messages[event_name])
@@ -252,12 +259,30 @@ class ConsoleView(Observer):
         if action.startswith("buy:"):
             name = action[len("buy:"):]
             return f"{name}({self.pet.shop_items[name]['price']}$)"
+        if action.startswith("skin:"):
+            skin_id = action[len("skin:"):]
+            if skin_id == self.pet.active_skin:
+                return f"{skin_name(skin_id)}*"   # * = aktualnie założona
+            if self.pet.owns_skin(skin_id):
+                return skin_name(skin_id)
+            return f"{skin_name(skin_id)}({SKIN_PRICES[skin_id]}$)"
         return ACTION_LABELS.get(action, action)
 
     def _can_afford(self, action):
-        if not action.startswith("buy:"):
-            return True
-        return self.pet.money >= self.pet.shop_items[action[len("buy:"):]]["price"]
+        if action.startswith("buy:"):
+            return self.pet.money >= self.pet.shop_items[action[len("buy:"):]]["price"]
+        if action.startswith("skin:"):
+            skin_id = action[len("skin:"):]
+            return self.pet.owns_skin(skin_id) or self.pet.money >= SKIN_PRICES[skin_id]
+        return True
+
+    def _hovered_skin(self):
+        """Skórka zaznaczona w menu skórek (do podglądu) albo None."""
+        if 0 <= self.selected_idx < len(self.menu_items):
+            action = self.menu_items[self.selected_idx]
+            if action.startswith("skin:"):
+                return action[len("skin:"):]
+        return None
 
     def _draw_bar(self, y, x, label, value):
         """Rysuje np.:  Energia   ██████████▒▒▒▒▒  67%  (kolor zależny od wartości)"""
@@ -275,6 +300,17 @@ class ConsoleView(Observer):
             return
         y, x, h, w = MENU_BOX
         self._clear_inside(MENU_BOX)
+        labels = [f" {self._label(a)} " for a in self.menu_items]
+        inner = w - 4
+        if all(i * MENU_SPACING + len(l) <= inner for i, l in enumerate(labels)):
+            xs = [i * MENU_SPACING for i in range(len(labels))]
+        else:
+            # Długie menu (np. sklep ze skórkami) - pozycje ciasno jedna za drugą
+            gap = max(0, (inner - sum(map(len, labels))) // max(1, len(labels) - 1))
+            xs, pos = [], 0
+            for l in labels:
+                xs.append(pos)
+                pos += len(l) + gap
         for i, action in enumerate(self.menu_items):
             if i == self.selected_idx:
                 attr = self.style["selected"]
@@ -282,7 +318,7 @@ class ConsoleView(Observer):
                 attr = self.style["disabled"]
             else:
                 attr = self.style["text"]
-            self._put(y + 1, x + 2 + i * MENU_SPACING, f" {self._label(action)} ", attr)
+            self._put(y + 1, x + 2 + xs[i], labels[i], attr)
         self.stdscr.refresh()
 
     def draw_stats(self):
@@ -305,20 +341,19 @@ class ConsoleView(Observer):
         """Dynamiczny ASCII Art zależny od statystyk z Modelu"""
         if self.too_small:
             return
-        if not self.pet.is_alive:
-            art, mood, style = [" (X_X) ", " /| |\\ "], "Nie zyje", "bad"
-        elif self.pet.energy < 30:
-            art, mood, style = [" (-_-)zZ", " /| |\\ "], "Spiacy", "sleepy"
-        elif self.pet.happiness < 40:
-            art, mood, style = [" (T_T) ", " /| |\\ "], "Smutny", "warn"
-        else:
-            art, mood, style = [" (^o^) ", " /| |\\ "], "Szczesliwy", "good"
+        caption, style = MOODS[self.pet.mood]
+        skin_id = self.pet.active_skin
+        preview = self._hovered_skin()
+        if preview:
+            skin_id, caption = preview, f"Podglad: {skin_name(preview)}"
+        art = render_skin(skin_id, self.pet.mood)
 
         y, x, h, w = PET_BOX
         self._clear_inside(PET_BOX)  # Czyść tylko panel zwierzaka
+        art_x = x + (w - len(art[0])) // 2
         for i, line in enumerate(art):
-            self._put(y + 2 + i, x + (w - len(line)) // 2, line, self.style[style])
-        self._put(y + h - 2, x + (w - len(mood)) // 2, mood, self.style[style])
+            self._put(y + 2 + i, art_x, line, self.style[style])
+        self._put(y + h - 2, x + (w - len(caption)) // 2, caption, self.style[style])
         self.stdscr.refresh()
 
     def draw_message(self):

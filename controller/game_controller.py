@@ -1,6 +1,7 @@
 ﻿# controller/game_controller.py
 import time
 from model.observer import Observer
+from model.skins import SKIN_PRICES
 
 # Menu to listy identyfikatorów akcji - napisy do wyświetlenia zna tylko widok.
 MAIN_MENU = ["shop", "play", "sleep", "exit"]
@@ -22,7 +23,8 @@ class GameController(Observer):
         self.view = view
 
         self.main_menu = list(MAIN_MENU)
-        self.shop_menu = [f"buy:{name}" for name in model.shop_items] + ["back"]
+        self.shop_menu = [f"buy:{name}" for name in model.shop_items] + ["skins", "back"]
+        self.skins_menu = [f"skin:{skin_id}" for skin_id in SKIN_PRICES] + ["back"]
         self.death_menu = list(DEATH_MENU)
 
         # Zwierzak mógł umrzeć podczas nieobecności gracza (wczytany zapis)
@@ -69,8 +71,7 @@ class GameController(Observer):
         elif command == "CONFIRM":
             self._execute(self.menu[self.selected_idx])
         elif command == "BACK":
-            if self.menu is self.shop_menu:
-                self._open_menu(self.main_menu)
+            self._go_back()
 
     # --- POMOCNICZE ---
     def _execute(self, action):
@@ -89,7 +90,16 @@ class GameController(Observer):
         if action == "shop":
             self._open_menu(self.shop_menu)
         elif action == "back":
-            self._open_menu(self.main_menu)
+            self._go_back()
+        elif action == "skins":
+            self._open_menu(self.skins_menu)
+        elif action.startswith("skin:"):
+            skin_id = action[len("skin:"):]
+            # Kupiona -> zakładamy, niekupiona -> próbujemy kupić (model sprawdzi kasę)
+            if self.model.owns_skin(skin_id):
+                self.model.equip_skin(skin_id)
+            else:
+                self.model.buy_skin(skin_id)
         elif action == "play":
             self._play_minigame()
         elif action == "sleep":
@@ -132,6 +142,13 @@ class GameController(Observer):
 
         self.view.end_minigame()
         self._show_menu()
+
+    def _go_back(self):
+        """Skórki -> Sklep -> Menu główne."""
+        if self.menu is self.skins_menu:
+            self._open_menu(self.shop_menu)
+        elif self.menu is self.shop_menu:
+            self._open_menu(self.main_menu)
 
     def _move(self, direction):
         self.selected_idx = (self.selected_idx + direction) % len(self.menu)

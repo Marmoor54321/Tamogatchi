@@ -3,6 +3,7 @@ import json
 import os
 from datetime import datetime
 from model.observer import Observable
+from model.skins import SKIN_PRICES, DEFAULT_SKIN
 
 
 class Pet(Observable):
@@ -13,6 +14,8 @@ class Pet(Observable):
     HAPPINESS_DROP_PER_SEC = 1.2 / 5
     HEALTH_DROP_PER_SEC = 1.0         # gdy zwierzak jest głodny lub zmęczony
     LOW_STAT_THRESHOLD = 20           # poniżej tej wartości zwierzak traci zdrowie
+    SLEEPY_THRESHOLD = 30             # poniżej - zwierzak jest śpiący
+    SAD_THRESHOLD = 40                # poniżej - zwierzak jest smutny
     MONEY_PER_OBSTACLE = 10           # $ za każdą przeskoczoną przeszkodę w minigrze
 
     def __init__(self, name="Tama"):
@@ -21,6 +24,10 @@ class Pet(Observable):
         self.is_alive = True
         self.money = 0
         self.high_score = 0  # Najlepszy wynik w minigrze Dino
+
+        # Skórki: kupione raz zostają na zawsze, założona może być jedna
+        self.owned_skins = {DEFAULT_SKIN}
+        self.active_skin = DEFAULT_SKIN
 
         # Statystyki (0-100)
         self.hunger = 100  # 100 = najedzony, 0 = głodujący
@@ -130,6 +137,49 @@ class Pet(Observable):
             # Wysyłamy sygnał o braku środków
             self.notify_observers("action_buy_fail", item_name)
 
+    # --- SKÓRKI ---
+
+    @property
+    def mood(self):
+        """Nastrój zwierzaka jako identyfikator: "dead" | "sleepy" | "sad" | "happy".
+        Widok decyduje tylko, jak dany nastrój narysować."""
+        if not self.is_alive:
+            return "dead"
+        if self.energy < self.SLEEPY_THRESHOLD:
+            return "sleepy"
+        if self.happiness < self.SAD_THRESHOLD:
+            return "sad"
+        return "happy"
+
+    def owns_skin(self, skin_id):
+        return skin_id in self.owned_skins
+
+    def buy_skin(self, skin_id):
+        """Kupuje skórkę i od razu ją zakłada."""
+        if not self.is_alive or skin_id not in SKIN_PRICES:
+            return False
+        if self.owns_skin(skin_id):
+            return self.equip_skin(skin_id)
+
+        price = SKIN_PRICES[skin_id]
+        if self.money < price:
+            self.notify_observers("action_skin_buy_fail", skin_id)
+            return False
+
+        self.money -= price
+        self.owned_skins.add(skin_id)
+        self.active_skin = skin_id
+        self.notify_observers("action_skin_bought", skin_id)
+        return True
+
+    def equip_skin(self, skin_id):
+        """Zakłada wcześniej kupioną skórkę."""
+        if not self.is_alive or not self.owns_skin(skin_id):
+            return False
+        self.active_skin = skin_id
+        self.notify_observers("action_skin_equipped", skin_id)
+        return True
+
     # --- LOGIKA UPŁYWU CZASU ---
 
     def pass_time(self, seconds):
@@ -158,6 +208,8 @@ class Pet(Observable):
             "is_alive": self.is_alive,
             "money": self.money,
             "high_score": self.high_score,
+            "owned_skins": sorted(self.owned_skins),
+            "active_skin": self.active_skin,
             "hunger": self.hunger,
             "energy": self.energy,
             "happiness": self.happiness,
@@ -178,6 +230,13 @@ class Pet(Observable):
         self.is_alive = data.get("is_alive", True)
         self.money = data.get("money", 0)
         self.high_score = data.get("high_score", 0)
+
+        # Ignorujemy skórki, których nie ma już w katalogu (np. stary zapis)
+        owned = {s for s in data.get("owned_skins", []) if s in SKIN_PRICES}
+        self.owned_skins = owned | {DEFAULT_SKIN}
+        active = data.get("active_skin", DEFAULT_SKIN)
+        self.active_skin = active if active in self.owned_skins else DEFAULT_SKIN
+
         self.hunger = data.get("hunger", 100)
         self.energy = data.get("energy", 100)
         self.happiness = data.get("happiness", 100)
