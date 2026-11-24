@@ -73,7 +73,7 @@ class DinoGame:
 
     MONEY_PER_OBSTACLE = 10
     JUMP_VELOCITY = 13.0      # Prędkość początkowa skoku (daje swobodę przeskoczenia przeszkód o wys. 2)
-    GRAVITY = 30.0            # Przyspieszenie grawitacyjne
+    GRAVITY = 27.0            # Przyspieszenie grawitacyjne (dłuższy lot - pod szerszy hitbox 7 kolumn)
     BASE_SPEED = 20.0         # Początkowa prędkość przesuwania przeszkód (jedn./s)
     MAX_SPEED = 36.0          # Maksymalna prędkość przy wysokim wyniku
 
@@ -97,8 +97,11 @@ class DinoGame:
         self.player_x = 6.0
         self.player_y = 0.0
         self.player_vy = 0.0
-        self.player_width = 5
-        self.player_height = 2
+        # Hitbox gracza - wspólny dla wszystkich skórek, żeby żadna nie była
+        # łatwiejsza ani trudniejsza. Rysunki w view/minigame_props.py muszą się
+        # w nim mieścić (pilnuje tego test w test_skins.py).
+        self.player_width = 7
+        self.player_height = 3
         self.is_jumping = False
 
         # Stan gry

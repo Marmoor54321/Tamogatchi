@@ -10,6 +10,8 @@ env/
 
 # Zapis stanu gry
 save.json
+save.json.tmp
+save.json.bad
 
 # Testy / narzędzia
 .pytest_cache/

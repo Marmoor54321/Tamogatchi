@@ -138,9 +138,11 @@ class MinigameSkinTest(unittest.TestCase):
             for frame in frames:
                 prop = get_player_prop(skin_id, frame)
                 self.assertIsNotNone(prop, (skin_id, frame))
-                # Rysunek ma wysokość hitboxa i nie jest dużo szerszy
-                self.assertEqual(prop.height, game.player_height, (skin_id, frame))
-                self.assertLessEqual(prop.width, game.player_width + 1, (skin_id, frame))
+                # Widoczne znaki muszą mieścić się w hitboxie - inaczej przeszkoda
+                # wchodziłaby w rysunek bez kolizji
+                visible_cols = [i for line in prop.lines for i, ch in enumerate(line) if ch != " "]
+                self.assertLessEqual(prop.height, game.player_height, (skin_id, frame))
+                self.assertLess(max(visible_cols), game.player_width, (skin_id, frame))
 
 
 if __name__ == "__main__":

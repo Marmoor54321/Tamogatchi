@@ -50,32 +50,32 @@ PROPS: dict[str, TextProp] = {
     # Postać gracza (nasz zwierzak Reksio w biegu, skoku i po kraksie)
     PropType.PLAYER_RUN_1: TextProp(
         lines=[
-            "(^o^) ",
-            "/| \\  "
+            " (^o^) ",
+            " /| \\  "
         ],
         style="good"
     ),
 
     PropType.PLAYER_RUN_2: TextProp(
         lines=[
-            "(^o^) ",
-            " / |\\ "
+            " (^o^) ",
+            "  / |\\ "
         ],
         style="good"
     ),
 
     PropType.PLAYER_JUMP: TextProp(
         lines=[
-            "(^o^) ",
-            "<| |> "
+            " (^o^) ",
+            " <| |> "
         ],
         style="title"
     ),
 
     PropType.PLAYER_CRASH: TextProp(
         lines=[
-            "(X_X) ",
-            "/| |\\ "
+            " (X_X) ",
+            " /| |\\ "
         ],
         style="bad"
     ),
@@ -131,7 +131,7 @@ def _skin_frames(run_1, run_2, jump, crash):
 SKIN_PLAYER_PROPS: dict[str, dict[str, TextProp]] = {
     "kotek": _skin_frames(
         run_1=[" /\\_/\\ ","( ^.^ )", "~> ^ < "],
-        run_2=["  |\\_|\\ "," ( ^.^ )", "-< ^ > "],
+        run_2=[" |\\_|\\ ", "( ^.^ )", "-< ^ > "],
         jump=[" /\\_/\\ ","( ^o^ )", "~> ^ < "],
         crash=[" /\\_/\\ ","( x.x )", "~> ^ < "],
     ),
@@ -143,7 +143,7 @@ SKIN_PLAYER_PROPS: dict[str, dict[str, TextProp]] = {
     ),
     "robot": _skin_frames(
         run_1=[" .-T-. ","[ ^_^ ]", " /|_|\\"],
-        run_2=["  .-\\-. "," [ ^_^ ]", " \|_|/"],
+        run_2=[" .-\\-. ", "[ ^_^ ]", " \\|_|/"],
         jump=[" .-T-. ","[ ^o^ ]", " <|_|>"],
         crash=[" .-T-. ","[ x_x ]", " /|_|\\"],
     ),

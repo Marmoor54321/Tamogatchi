@@ -74,19 +74,23 @@ class ConsoleView(Observer):
         """Wyświetla podane menu (identyfikatory akcji) z zaznaczoną pozycją."""
         self.menu.set_items(items, selected_idx)
         self.pet_panel.preview_skin = self.menu.hovered_skin()  # Podgląd w sklepie skórek
+        if self.in_minigame:
+            return  # Narysuje się po wyjściu z minigry (end_minigame)
         self.menu.redraw()
         self.pet_panel.redraw()
 
     # --- METODA Z WZORCA OBSERWATOR ---
     def update(self, event_name, data=None):
+        # Komunikat zapamiętujemy zawsze - także ten z minigry (wynik biegu,
+        # śmierć zwierzaka). Zobaczymy go po powrocie do menu.
+        msg = messages.message_for(event_name, data)
+        if msg:
+            self.message.set(*msg)
+
         if self.in_minigame:
             # Podczas minigry nie przerysowujemy widoku Tamagotchi,
             # aby uniknąć migotania i nakładania się napisów.
             return
-
-        msg = messages.message_for(event_name, data)
-        if msg:
-            self.message.set(*msg)
 
         if event_name == "stats_changed":
             self._redraw(self.stats, self.pet_panel)

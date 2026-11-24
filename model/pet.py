@@ -182,17 +182,27 @@ class Pet(Observable):
 
     # --- LOGIKA UPŁYWU CZASU ---
 
+    def _seconds_until_low(self, value, drop_per_sec):
+        """Po ilu sekundach statystyka spadnie poniżej LOW_STAT_THRESHOLD (0 = już jest)."""
+        return max(0.0, (value - self.LOW_STAT_THRESHOLD) / drop_per_sec)
+
     def pass_time(self, seconds):
         """Wywoływane przez Kontroler w głównej pętli gry. Obniża statystyki w czasie."""
         if not self.is_alive or seconds <= 0: return
+
+        # Zdrowie spada tylko przez tę część czasu, w której zwierzak był już głodny
+        # lub zmęczony. Liczymy to przed zmianą statystyk, więc wynik jest taki sam
+        # dla jednego długiego kroku (np. powrót po nieobecności) i wielu krótkich.
+        low_since = min(self._seconds_until_low(self.hunger, self.HUNGER_DROP_PER_SEC),
+                        self._seconds_until_low(self.energy, self.ENERGY_DROP_PER_SEC))
+        damage_seconds = max(0.0, seconds - low_since)
 
         self.hunger = self._clamp(self.hunger - seconds * self.HUNGER_DROP_PER_SEC)
         self.energy = self._clamp(self.energy - seconds * self.ENERGY_DROP_PER_SEC)
         self.happiness = self._clamp(self.happiness - seconds * self.HAPPINESS_DROP_PER_SEC)
 
-        # Jeśli zwierzak jest głodny lub zmęczony, traci zdrowie (proporcjonalnie do czasu)
-        if self.hunger < self.LOW_STAT_THRESHOLD or self.energy < self.LOW_STAT_THRESHOLD:
-            self.health = self._clamp(self.health - seconds * self.HEALTH_DROP_PER_SEC)
+        if damage_seconds > 0:
+            self.health = self._clamp(self.health - damage_seconds * self.HEALTH_DROP_PER_SEC)
             if self.health == 0:
                 self.is_alive = False
                 self.notify_observers("pet_died")
@@ -203,6 +213,8 @@ class Pet(Observable):
     # --- ZAPIS I ODCZYT (Baza Danych/Plik) ---
 
     def save_state(self):
+        """Zapisuje stan do pliku tymczasowego i dopiero potem podmienia save.json.
+        Przerwany zapis (zamknięte okno, brak prądu) nie zniszczy starego zapisu."""
         data = {
             "name": self.name,
             "is_alive": self.is_alive,
@@ -216,36 +228,67 @@ class Pet(Observable):
             "health": self.health,
             "last_update": self.last_update.isoformat()
         }
-        with open(self.save_file, "w") as f:
+        tmp_file = self.save_file + ".tmp"
+        with open(tmp_file, "w") as f:
             json.dump(data, f)
+        os.replace(tmp_file, self.save_file)
 
     def load_state(self):
+        """Wczytuje zapis. Zwraca False, gdy zapisu nie ma albo jest uszkodzony
+        (wtedy gra zaczyna się od nowa, a zły plik zostaje jako save.json.bad)."""
         if not os.path.exists(self.save_file):
-            return  # Zaczynamy nową grę
+            return False  # Zaczynamy nową grę
 
-        with open(self.save_file, "r") as f:
-            data = json.load(f)
+        try:
+            with open(self.save_file, "r") as f:
+                data = json.load(f)
+            if not isinstance(data, dict):
+                raise ValueError("zapis nie jest obiektem JSON")
+            state = {
+                "name": str(data.get("name", self.name)),
+                "is_alive": bool(data.get("is_alive", True)),
+                "money": int(data.get("money", 0)),
+                "high_score": int(data.get("high_score", 0)),
+                "hunger": self._clamp(data.get("hunger", 100)),
+                "energy": self._clamp(data.get("energy", 100)),
+                "happiness": self._clamp(data.get("happiness", 100)),
+                "health": self._clamp(data.get("health", 100)),
+                "owned_skins": list(data.get("owned_skins", [])),
+                "active_skin": data.get("active_skin", DEFAULT_SKIN),
+            }
+            last_update = data.get("last_update")
+            saved_time = datetime.fromisoformat(last_update) if last_update else datetime.now()
+        except (OSError, ValueError, TypeError):
+            # json.JSONDecodeError też jest ValueError
+            self._set_aside_bad_save()
+            return False
 
-        self.name = data.get("name", self.name)
-        self.is_alive = data.get("is_alive", True)
-        self.money = data.get("money", 0)
-        self.high_score = data.get("high_score", 0)
+        # Dopiero gdy wszystko się wczytało, zmieniamy stan zwierzaka
+        self.name = state["name"]
+        self.is_alive = state["is_alive"] and state["health"] > 0
+        self.money = max(0, state["money"])
+        self.high_score = max(0, state["high_score"])
+        self.hunger = state["hunger"]
+        self.energy = state["energy"]
+        self.happiness = state["happiness"]
+        self.health = state["health"]
 
         # Ignorujemy skórki, których nie ma już w katalogu (np. stary zapis)
-        owned = {s for s in data.get("owned_skins", []) if s in SKIN_PRICES}
+        owned = {s for s in state["owned_skins"] if s in SKIN_PRICES}
         self.owned_skins = owned | {DEFAULT_SKIN}
-        active = data.get("active_skin", DEFAULT_SKIN)
+        active = state["active_skin"]
         self.active_skin = active if active in self.owned_skins else DEFAULT_SKIN
-
-        self.hunger = data.get("hunger", 100)
-        self.energy = data.get("energy", 100)
-        self.happiness = data.get("happiness", 100)
-        self.health = data.get("health", 100)
-
-        saved_time = datetime.fromisoformat(data.get("last_update", datetime.now().isoformat()))
 
         # Symulacja upływu czasu podczas nieobecności (Offline Progress)
         if self.is_alive:
             time_diff = (datetime.now() - saved_time).total_seconds()
             if time_diff > 0:
                 self.pass_time(time_diff)
+        return True
+
+    def _set_aside_bad_save(self):
+        """Odkłada uszkodzony zapis na bok, żeby nie zniknął bez śladu."""
+        try:
+            os.replace(self.save_file, self.save_file + ".bad")
+        except OSError:
+            pass

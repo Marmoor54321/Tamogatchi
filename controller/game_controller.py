@@ -31,6 +31,7 @@ class GameController(Observer):
         self.menu = self.main_menu if model.is_alive else self.death_menu
         self.selected_idx = 0
         self.running = False
+        self._last_tick = time.monotonic()
 
         # Kontroler też obserwuje model, żeby zareagować np. na śmierć zwierzaka
         self.model.add_observer(self)
@@ -46,22 +47,29 @@ class GameController(Observer):
     def run(self):
         self.running = True
         self._show_menu()
-        last_tick = time.monotonic()
+        self._last_tick = time.monotonic()
         try:
             while self.running:
                 command = self.view.get_command()
-
-                # Czas mija - liczymy ile faktycznie upłynęło od ostatniego obiegu,
-                # więc naciskanie klawiszy nie przyspiesza gry.
-                now = time.monotonic()
-                self.model.pass_time(now - last_tick)
-                last_tick = now
-
+                self._tick()
                 if command:
                     self.handle_command(command)
         finally:
             # Zapis także przy Ctrl+C
             self.model.save_state()
+
+    def _tick(self):
+        """Przekazuje zwierzakowi czas, który upłynął od poprzedniego wywołania.
+
+        Jeden zegar dla całej gry (menu i minigra), więc żadna sekunda nie jest
+        liczona dwa razy, a naciskanie klawiszy nie przyspiesza gry.
+        Zwraca liczbę sekund (przydaje się minigrze do fizyki).
+        """
+        now = time.monotonic()
+        dt = now - self._last_tick
+        self._last_tick = now
+        self.model.pass_time(dt)
+        return dt
 
     def handle_command(self, command):
         if command == "NEXT":
@@ -114,7 +122,7 @@ class GameController(Observer):
         from model.dino_game import DinoGame
         game = DinoGame(track_width=58, high_score=self.model.high_score)
         self.view.start_minigame(game)
-        last_time = time.monotonic()
+        self._tick()  # Od tej chwili liczymy czas gry
 
         while not game.is_game_over:
             cmd = self.view.get_minigame_command()
@@ -123,22 +131,22 @@ class GameController(Observer):
             elif cmd == "JUMP":
                 game.jump()
 
-            now = time.monotonic()
-            dt = now - last_time
-            last_time = now
-
-            # Upływ czasu dla zwierzaka w trakcie minigry
-            self.model.pass_time(dt)
+            # Czas płynie też dla zwierzaka - ten sam zegar co w menu
+            dt = self._tick()
+            if not self.model.is_alive:
+                break  # Zwierzak padł w trakcie biegu - koniec zabawy, bez nagrody
 
             game.update(dt)
             self.view.draw_minigame(game)
 
-        # Zapisujemy wynik zabawy w modelu (10$ za przeszkodę + aktualizacja rekordu)
+        # Zapisujemy wynik zabawy w modelu (10$ za przeszkodę + aktualizacja rekordu).
+        # Martwy zwierzak nic nie dostaje - model sam to sprawdza.
         self.model.record_minigame_result(game.score)
 
-        # Jeśli gra zakończyła się kolizją (a nie wyjściem przez ESC/Q), pokazujemy ekran końcowy
-        if game.is_game_over:
+        # Ekran końcowy tylko po kolizji (nie po ESC/Q ani po śmierci zwierzaka)
+        if game.is_game_over and self.model.is_alive:
             self.view.show_minigame_game_over(game)
+            self._tick()  # Czas na ekranie końcowym też się liczy (raz)
 
         self.view.end_minigame()
         self._show_menu()
