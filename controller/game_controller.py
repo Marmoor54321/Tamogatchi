@@ -6,6 +6,7 @@ from model.shop import Shop
 # Menu to listy identyfikatorów akcji - napisy do wyświetlenia zna tylko widok.
 MAIN_MENU = ["shop", "play", "sleep", "exit"]
 DEATH_MENU = ["resurrect", "exit"]
+SLEEP_MENU = ["wake", "exit"]   # Śpiący zwierzak: można go tylko obudzić
 
 
 class GameController(Observer):
@@ -29,9 +30,15 @@ class GameController(Observer):
         self.shop_menu = [f"buy:{item_id}" for item_id in self.shop.items] + ["skins", "back"]
         self.skins_menu = [f"skin:{skin_id}" for skin_id in self.shop.skin_prices] + ["back"]
         self.death_menu = list(DEATH_MENU)
+        self.sleep_menu = list(SLEEP_MENU)
 
-        # Zwierzak mógł umrzeć podczas nieobecności gracza (wczytany zapis)
-        self.menu = self.main_menu if model.is_alive else self.death_menu
+        # Zwierzak mógł umrzeć albo dalej spać po wczytaniu zapisu
+        if not model.is_alive:
+            self.menu = self.death_menu
+        elif model.is_sleeping:
+            self.menu = self.sleep_menu
+        else:
+            self.menu = self.main_menu
         self.selected_idx = 0
         self.running = False
         self._last_tick = time.monotonic()
@@ -45,6 +52,10 @@ class GameController(Observer):
             self._open_menu(self.death_menu)  # Zostaje tylko "Odródź" i "Wyjście"
         elif event_name == "pet_resurrected":
             self._open_menu(self.main_menu)
+        elif event_name == "action_sleep":
+            self._open_menu(self.sleep_menu)
+        elif event_name == "action_wake_up" and self.model.is_alive:
+            self._open_menu(self.main_menu)  # Obudzony ręcznie albo sam się wyspał
 
     # --- GŁÓWNA PĘTLA ---
     def run(self):
@@ -116,7 +127,9 @@ class GameController(Observer):
             if self.model.start_play():
                 self._play_minigame()
         elif action == "sleep":
-            self.model.sleep()
+            self.model.start_sleep()   # Menu snu otworzy się po zdarzeniu "action_sleep"
+        elif action == "wake":
+            self.model.wake_up()
         elif action.startswith("buy:"):
             self.shop.buy(action[len("buy:"):])
 

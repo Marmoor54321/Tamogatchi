@@ -85,6 +85,17 @@ class OfflineTimeTest(unittest.TestCase):
         pet.pass_time(399)
         self.assertEqual(pet.health, 100)
 
+    def test_stats_stop_at_the_moment_of_death(self):
+        once, steps = Pet(), Pet()
+        for pet in (once, steps):
+            pet.hunger, pet.health = 10, 5    # umiera po 5 s głodu
+        once.pass_time(100)
+        for _ in range(200):
+            steps.pass_time(0.5)
+        self.assertFalse(once.is_alive)
+        self.assertAlmostEqual(once.energy, steps.energy, delta=0.2)
+        self.assertAlmostEqual(once.energy, 100 - 5 * Pet.ENERGY_DROP_PER_SEC, delta=0.01)
+
     def test_long_absence_still_kills(self):
         pet = Pet()
         pet.pass_time(3600)
@@ -228,6 +239,111 @@ class PlayEnergyTest(TempSaveMixin, unittest.TestCase):
         self.assertIn("energii", text)
         self.assertEqual(style, "warn")
         self.assertLessEqual(len(text), MESSAGE_BOX[3] - 6)
+
+
+class SleepTest(TempSaveMixin, unittest.TestCase):
+    """Sen to stan: +1 energii co 2 s, pobudka sama przy 100% albo ręcznie."""
+
+    def setUp(self):
+        super().setUp()
+        self.pet = self.new_pet()
+        self.events = []
+        self.pet.add_observer(type("Spy", (), {"update": lambda _, e, d=None: self.events.append((e, d))})())
+
+    def test_sleep_does_not_restore_energy_instantly(self):
+        self.pet.energy = 40
+        self.assertTrue(self.pet.start_sleep())
+        self.assertEqual(self.pet.energy, 40)
+        self.assertTrue(self.pet.is_sleeping)
+        self.assertEqual(self.pet.mood, "asleep")
+
+    def test_two_seconds_of_sleep_give_one_point(self):
+        self.pet.energy = 40
+        self.pet.start_sleep()
+        self.pet.pass_time(2)
+        self.assertAlmostEqual(self.pet.energy, 41)
+        for _ in range(20):
+            self.pet.pass_time(0.5)
+        self.assertAlmostEqual(self.pet.energy, 46)
+
+    def test_hunger_still_drops_while_sleeping(self):
+        self.pet.energy, self.pet.hunger = 40, 80
+        self.pet.start_sleep()
+        self.pet.pass_time(10)
+        self.assertAlmostEqual(self.pet.hunger, 78)
+
+    def test_wakes_up_by_itself_when_rested(self):
+        self.pet.energy = 90
+        self.pet.start_sleep()
+        self.pet.pass_time(30)   # 20 s snu do 100%, potem 10 s czuwania
+        self.assertFalse(self.pet.is_sleeping)
+        self.assertAlmostEqual(self.pet.energy, 100 - 10 * Pet.ENERGY_DROP_PER_SEC)
+        self.assertIn(("action_wake_up", {"rested": True}), self.events)
+
+    def test_manual_wake_up_keeps_gained_energy(self):
+        self.pet.energy = 40
+        self.pet.start_sleep()
+        self.pet.pass_time(20)
+        self.assertTrue(self.pet.wake_up())
+        self.assertFalse(self.pet.is_sleeping)
+        self.assertAlmostEqual(self.pet.energy, 50)
+        self.assertIn(("action_wake_up", {"rested": False}), self.events)
+
+    def test_rested_pet_refuses_to_sleep(self):
+        self.assertFalse(self.pet.start_sleep())
+        self.assertIn(("action_sleep_refused", None), self.events)
+
+    def test_cannot_play_while_sleeping(self):
+        self.pet.energy = 90
+        self.pet.start_sleep()
+        self.assertFalse(self.pet.can_play())
+
+    def test_long_step_equals_short_steps_with_waking_in_between(self):
+        a, b = self.new_pet(), self.new_pet()
+        for pet in (a, b):
+            pet.energy, pet.hunger = 10, 30   # zmęczony i prawie głodny
+            pet.start_sleep()
+        a.pass_time(400)
+        for _ in range(800):
+            b.pass_time(0.5)
+        self.assertEqual(a.is_sleeping, b.is_sleeping)
+        for stat in ("energy", "hunger", "happiness", "health"):
+            self.assertAlmostEqual(getattr(a, stat), getattr(b, stat), delta=0.6, msg=stat)
+
+    def test_sleeping_survives_save_and_continues_offline(self):
+        self.pet.energy = 40
+        self.pet.start_sleep()
+        self.pet.last_update = datetime.now() - timedelta(seconds=40)
+        self.pet.save_state()
+        loaded = self.new_pet()
+        loaded.load_state()
+        self.assertTrue(loaded.is_sleeping)
+        self.assertAlmostEqual(loaded.energy, 60, delta=0.5)   # 40 s snu = +20
+
+    def test_controller_switches_menus(self):
+        from controller.game_controller import GameController
+        view = ScriptedView(FakeClock(), [])
+        ctrl = GameController(self.pet, view)
+        self.pet.energy = 98
+        ctrl.selected_idx = ctrl.menu.index("sleep")
+        ctrl.handle_command("CONFIRM")
+        self.assertIs(ctrl.menu, ctrl.sleep_menu)
+        self.pet.pass_time(10)            # wysypia się po 4 s
+        self.assertIs(ctrl.menu, ctrl.main_menu)
+
+        self.pet.energy = 50
+        ctrl.selected_idx = ctrl.menu.index("sleep")
+        ctrl.handle_command("CONFIRM")
+        ctrl.selected_idx = ctrl.menu.index("wake")
+        ctrl.handle_command("CONFIRM")
+        self.assertIs(ctrl.menu, ctrl.main_menu)
+
+    def test_loaded_sleeping_pet_opens_sleep_menu(self):
+        from controller.game_controller import GameController
+        self.pet.energy = 10
+        self.pet.start_sleep()
+        ctrl = GameController(self.pet, ScriptedView(FakeClock(), []))
+        self.assertIs(ctrl.menu, ctrl.sleep_menu)
 
 
 if __name__ == "__main__":

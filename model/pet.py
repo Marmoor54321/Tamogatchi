@@ -17,12 +17,14 @@ class Pet(Observable):
     SLEEPY_THRESHOLD = 30             # poniżej - zwierzak jest śpiący
     SAD_THRESHOLD = 40                # poniżej - zwierzak jest smutny
     MIN_ENERGY_TO_PLAY = SLEEPY_THRESHOLD  # śpiący zwierzak nie chce się bawić
+    SLEEP_ENERGY_PER_SEC = 1 / 2      # w czasie snu: 1 punkt energii co 2 sekundy
     MONEY_PER_OBSTACLE = 10           # $ za każdą przeskoczoną przeszkodę w minigrze
 
     def __init__(self, name="Tama"):
         super().__init__()
         self.name = name
         self.is_alive = True
+        self.is_sleeping = False  # Śpiący zwierzak odzyskuje energię z czasem
         self.money = 0
         self.high_score = 0  # Najlepszy wynik w minigrze Dino
 
@@ -68,11 +70,30 @@ class Pet(Observable):
         self._update_stat("energy", 5)
         self.notify_observers("action_feed")
 
-    def sleep(self):
-        if not self.is_alive: return
-        self._update_stat("energy", 50)
-        self._update_stat("hunger", -10)
+    # --- SEN ---
+
+    def start_sleep(self):
+        """Zwierzak zasypia. Energia rośnie potem w pass_time() (1 pkt / 2 s),
+        aż do 100% - wtedy budzi się sam. Wypoczęty zwierzak nie chce spać."""
+        if not self.is_alive or self.is_sleeping:
+            return False
+        if self.energy >= 100:
+            self.notify_observers("action_sleep_refused")
+            return False
+        self.is_sleeping = True
         self.notify_observers("action_sleep")
+        return True
+
+    def wake_up(self):
+        """Budzi zwierzaka przed czasem (z taką energią, jaką zdążył odzyskać)."""
+        if not self.is_sleeping:
+            return False
+        self._wake(rested=False)
+        return True
+
+    def _wake(self, rested):
+        self.is_sleeping = False
+        self.notify_observers("action_wake_up", {"rested": rested})
 
     def play(self, score=0):
         """Zabawa ze zwierzakiem. Za każdą przeskoczoną przeszkodę w minigrze gracz otrzymuje 10$."""
@@ -80,8 +101,8 @@ class Pet(Observable):
         return self.record_minigame_result(score)
 
     def can_play(self):
-        """Czy zwierzak ma dość siły na zabawę."""
-        return self.is_alive and self.energy >= self.MIN_ENERGY_TO_PLAY
+        """Czy zwierzak ma dość siły na zabawę (i czy nie śpi)."""
+        return self.is_alive and not self.is_sleeping and self.energy >= self.MIN_ENERGY_TO_PLAY
 
     def start_play(self):
         """Zwierzak próbuje zacząć zabawę. Gdy jest zbyt zmęczony, odmawia
@@ -121,6 +142,7 @@ class Pet(Observable):
 
     def resurrect(self):
         self.is_alive = True
+        self.is_sleeping = False
         self.hunger = 100
         self.energy = 100
         self.happiness = 100
@@ -155,10 +177,13 @@ class Pet(Observable):
 
     @property
     def mood(self):
-        """Nastrój zwierzaka jako identyfikator: "dead" | "sleepy" | "sad" | "happy".
+        """Nastrój zwierzaka jako identyfikator:
+        "dead" | "asleep" | "sleepy" | "sad" | "happy".
         Widok decyduje tylko, jak dany nastrój narysować."""
         if not self.is_alive:
             return "dead"
+        if self.is_sleeping:
+            return "asleep"
         if self.energy < self.SLEEPY_THRESHOLD:
             return "sleepy"
         if self.happiness < self.SAD_THRESHOLD:
@@ -191,28 +216,65 @@ class Pet(Observable):
         return max(0.0, (value - self.LOW_STAT_THRESHOLD) / drop_per_sec)
 
     def pass_time(self, seconds):
-        """Wywoływane przez Kontroler w głównej pętli gry. Obniża statystyki w czasie."""
+        """Wywoływane przez Kontroler w głównej pętli gry (i po wczytaniu zapisu
+        za czas nieobecności). Zmienia statystyki w czasie.
+
+        Wynik jest taki sam dla jednego długiego kroku i wielu krótkich, także gdy
+        zwierzak w międzyczasie się wyśpi i obudzi."""
         if not self.is_alive or seconds <= 0: return
 
-        # Zdrowie spada tylko przez tę część czasu, w której zwierzak był już głodny
-        # lub zmęczony. Liczymy to przed zmianą statystyk, więc wynik jest taki sam
-        # dla jednego długiego kroku (np. powrót po nieobecności) i wielu krótkich.
-        low_since = min(self._seconds_until_low(self.hunger, self.HUNGER_DROP_PER_SEC),
-                        self._seconds_until_low(self.energy, self.ENERGY_DROP_PER_SEC))
-        damage_seconds = max(0.0, seconds - low_since)
+        if self.is_sleeping:
+            # Najpierw sen - do pełnej energii albo do końca podanego czasu
+            until_rested = (100 - self.energy) / self.SLEEP_ENERGY_PER_SEC
+            asleep = min(seconds, until_rested)
+            self._advance(asleep, self.SLEEP_ENERGY_PER_SEC)
+            seconds -= asleep
+            if self.is_alive and self.energy >= 100:
+                self._wake(rested=True)
+
+        if self.is_alive and seconds > 0:
+            self._advance(seconds, -self.ENERGY_DROP_PER_SEC)
+
+        self.last_update = datetime.now()
+        self.notify_observers("stats_changed")
+
+    def _advance(self, seconds, energy_per_sec):
+        """Jeden odcinek czasu ze stałym tempem zmian (sen albo czuwanie)."""
+        # Zdrowie spada tylko wtedy, gdy zwierzak jest głodny LUB zmęczony.
+        # Wyznaczamy te chwile z góry, więc wynik nie zależy od długości kroku.
+        hungry_from = self._seconds_until_low(self.hunger, self.HUNGER_DROP_PER_SEC)
+        if energy_per_sec < 0:
+            # Energia spada: zmęczony od chwili tired_from do końca odcinka
+            tired_from = self._seconds_until_low(self.energy, -energy_per_sec)
+            harm = [(min(hungry_from, tired_from), seconds)]
+        else:
+            # Energia rośnie (sen): zmęczony tylko na początku, do chwili tired_until
+            tired_until = min(seconds, max(0.0, (self.LOW_STAT_THRESHOLD - self.energy) / energy_per_sec))
+            harm = [(0.0, tired_until), (max(tired_until, hungry_from), seconds)]
+
+        # Kiedy zdrowie spadnie do zera? Jeśli w tym odcinku - czas kończy się na śmierci,
+        # żeby pozostałe statystyki nie liczyły się dalej (np. martwy zwierzak się nie wysypia).
+        health_left = self.health / self.HEALTH_DROP_PER_SEC   # sekundy szkody do śmierci
+        damage_seconds, died_at = 0.0, None
+        for start, end in harm:
+            length = max(0.0, end - start)
+            if damage_seconds + length >= health_left and died_at is None and length > 0:
+                died_at = start + (health_left - damage_seconds)
+            damage_seconds += length
+        if died_at is not None:
+            seconds, damage_seconds = died_at, health_left
 
         self.hunger = self._clamp(self.hunger - seconds * self.HUNGER_DROP_PER_SEC)
-        self.energy = self._clamp(self.energy - seconds * self.ENERGY_DROP_PER_SEC)
+        self.energy = self._clamp(self.energy + seconds * energy_per_sec)
         self.happiness = self._clamp(self.happiness - seconds * self.HAPPINESS_DROP_PER_SEC)
 
         if damage_seconds > 0:
             self.health = self._clamp(self.health - damage_seconds * self.HEALTH_DROP_PER_SEC)
-            if self.health == 0:
+            if died_at is not None or self.health == 0:
+                self.health = 0.0
                 self.is_alive = False
+                self.is_sleeping = False
                 self.notify_observers("pet_died")
-
-        self.last_update = datetime.now()
-        self.notify_observers("stats_changed")
 
     # --- ZAPIS I ODCZYT (Baza Danych/Plik) ---
 
@@ -222,6 +284,7 @@ class Pet(Observable):
         data = {
             "name": self.name,
             "is_alive": self.is_alive,
+            "is_sleeping": self.is_sleeping,
             "money": self.money,
             "high_score": self.high_score,
             "owned_skins": sorted(self.owned_skins),
@@ -251,6 +314,7 @@ class Pet(Observable):
             state = {
                 "name": str(data.get("name", self.name)),
                 "is_alive": bool(data.get("is_alive", True)),
+                "is_sleeping": bool(data.get("is_sleeping", False)),
                 "money": int(data.get("money", 0)),
                 "high_score": int(data.get("high_score", 0)),
                 "hunger": self._clamp(data.get("hunger", 100)),
@@ -270,6 +334,7 @@ class Pet(Observable):
         # Dopiero gdy wszystko się wczytało, zmieniamy stan zwierzaka
         self.name = state["name"]
         self.is_alive = state["is_alive"] and state["health"] > 0
+        self.is_sleeping = state["is_sleeping"] and self.is_alive
         self.money = max(0, state["money"])
         self.high_score = max(0, state["high_score"])
         self.hunger = state["hunger"]

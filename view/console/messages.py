@@ -27,7 +27,11 @@ _MESSAGES = {
     "action_play": _play_message,
     "action_play_refused": lambda d: ("Zwierzak jest zbyt zmeczony na zabawe. Niech sie przespi!", "warn"),
     "action_feed": lambda d: ("Mniam! (+Glod)", "good"),
-    "action_sleep": lambda d: ("Zzz... (+Energia)", "sleepy"),
+    "action_sleep": lambda d: ("Zwierzak zasnal. Zzz... (+1 energii co 2 s)", "sleepy"),
+    "action_sleep_refused": lambda d: ("Zwierzak jest wypoczety - nie chce spac.", "info"),
+    "action_wake_up": lambda d: (("Zwierzak sie wyspal! Energia 100%.", "good")
+                                 if isinstance(d, dict) and d.get("rested")
+                                 else ("Pobudka! Zwierzak wstal przed czasem.", "info")),
     "action_buy_success": lambda d: (f"Kupiono i uzyto: {_item_name(d)}!", "good"),
     "action_buy_fail": lambda d: (f"Za malo kasy na: {_item_name(d)}! Baw sie, by zarobic.", "bad"),
     "action_skin_bought": lambda d: (f"Kupiono skorke: {skin_name(d)}! Zwierzak juz ja nosi.", "good"),

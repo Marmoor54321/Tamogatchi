@@ -9,6 +9,7 @@ ACTION_LABELS = {
     "shop": "Sklep",
     "play": "Zabawa",
     "sleep": "Śpij",
+    "wake": "Obudź",
     "exit": "Wyjście",
     "back": "Wróć",
     "resurrect": "Odródź",
