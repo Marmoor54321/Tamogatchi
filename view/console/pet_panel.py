@@ -16,6 +16,10 @@ class PetPanel(Panel):
         self.pet = pet
         self.preview_skin = None
 
+    def draw_frame(self):
+        self.title = self.pet.name
+        super().draw_frame()
+
     def draw_content(self):
         caption, style_name = MOODS[self.pet.mood]
         skin_id = self.pet.active_skin

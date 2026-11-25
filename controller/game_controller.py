@@ -19,10 +19,11 @@ class GameController(Observer):
     Dzięki temu wersja graficzna wymaga jedynie nowej klasy widoku.
     """
 
-    def __init__(self, model, view, shop=None):
+    def __init__(self, model, view, shop=None, ask_name_on_start=False):
         self.model = model
         self.view = view
         self.shop = shop or Shop(model)
+        self.ask_name_on_start = ask_name_on_start
 
         self.main_menu = list(MAIN_MENU)
         # Menu sklepu buduje się samo z katalogu - nowy przedmiot w model/shop.py
@@ -60,9 +61,11 @@ class GameController(Observer):
     # --- GŁÓWNA PĘTLA ---
     def run(self):
         self.running = True
-        self._show_menu()
-        self._last_tick = time.monotonic()
         try:
+            self._show_menu()
+            if self.ask_name_on_start:
+                self._prompt_pet_name(is_resurrection=False)
+            self._last_tick = time.monotonic()
             while self.running:
                 command = self.view.get_command()
                 self._tick()
@@ -103,6 +106,7 @@ class GameController(Observer):
 
         if action == "resurrect":
             self.model.resurrect()  # Menu główne otworzy się po zdarzeniu "pet_resurrected"
+            self._prompt_pet_name(is_resurrection=True)
             return
 
         # Martwy zwierzak nie może nic robić - tylko "Odródź" albo "Wyjście"
@@ -168,6 +172,16 @@ class GameController(Observer):
 
         self.view.end_minigame()
         self._show_menu()
+
+    def _prompt_pet_name(self, is_resurrection=False):
+        """Wywołuje okno nadania imienia w widoku (przy pierwszym starcie lub odrodzeniu)."""
+        ask = getattr(self.view, "ask_pet_name", None)
+        if ask is None:
+            return
+        new_name = ask(self.model.name, is_resurrection=is_resurrection)
+        if new_name and new_name.strip():
+            self.model.rename(new_name)
+        self._last_tick = time.monotonic()
 
     def _go_back(self):
         """Skórki -> Sklep -> Menu główne."""

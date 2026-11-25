@@ -8,7 +8,7 @@ from controller.game_controller import GameController
 def main_app(stdscr):
     # 1. Inicjalizacja modelu
     pet = Pet("Reksio")
-    pet.load_state() # Próba wczytania stanu gry z pliku JSON
+    is_new_game = not pet.load_state() # Próba wczytania stanu gry z pliku JSON
 
     shop = Shop(pet)  # Sklep z przedmiotami i skórkami (model/shop.py)
 
@@ -16,7 +16,7 @@ def main_app(stdscr):
     view = ConsoleView(stdscr, pet, shop)
 
     # 3. Inicjalizacja kontrolera i start głównej pętli
-    controller = GameController(pet, view, shop)
+    controller = GameController(pet, view, shop, ask_name_on_start=is_new_game)
     controller.run()
 
 if __name__ == "__main__":

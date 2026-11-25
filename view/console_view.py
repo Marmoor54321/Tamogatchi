@@ -16,6 +16,7 @@ from view.console.layout import HINT, ROW_HINT, SCREEN_H, SCREEN_W, TOO_SMALL
 from view.console.menu_panel import MenuPanel
 from view.console.message_panel import MessagePanel
 from view.console.minigame_screen import MinigameScreen
+from view.console.name_dialog import NameDialog
 from view.console.pet_panel import PetPanel
 from view.console.stats_panel import StatsPanel
 
@@ -52,6 +53,7 @@ class ConsoleView(Observer):
         self.menu = MenuPanel(self.canvas, pet, shop or Shop(pet))
         self.panels = [self.stats, self.pet_panel, self.message, self.menu]
         self.minigame = MinigameScreen(self.canvas, pet)
+        self.name_dialog = NameDialog(self.canvas)
 
         self.message.set(*(messages.WELCOME if pet.is_alive else messages.DIED_WHILE_AWAY))
         self.full_redraw()
@@ -82,6 +84,21 @@ class ConsoleView(Observer):
         self.pet_panel.redraw()
         self.message.redraw()
 
+    def ask_pet_name(self, current_name, is_resurrection=False):
+        """Pokazuje modalne okienko nadawania imienia i zwraca wybrane imię lub None."""
+        self.full_redraw()
+        self.stdscr.timeout(-1)
+        try:
+            return self.name_dialog.run(
+                self.stdscr,
+                current_name,
+                is_resurrection=is_resurrection,
+                redraw_bg=self.full_redraw,
+            )
+        finally:
+            self.stdscr.timeout(self.tick_ms)
+            self.full_redraw()
+
     # --- METODA Z WZORCA OBSERWATOR ---
     def update(self, event_name, data=None):
         # Komunikat zapamiętujemy zawsze - także ten z minigry (wynik biegu,
@@ -107,6 +124,8 @@ class ConsoleView(Observer):
             self.full_redraw()
         elif event_name == "pet_resurrected":
             self._redraw(self.message, self.pet_panel)
+        elif event_name == "pet_renamed":
+            self.full_redraw()
         elif event_name.startswith("action_"):
             # Kasa lub statystyki mogły się zmienić, a z nimi to, na co nas stać w sklepie
             self._redraw(self.stats, self.message, self.pet_panel, self.menu)

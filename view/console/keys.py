@@ -38,3 +38,34 @@ def read_key(stdscr):
                 pass
         return RESIZE
     return key
+
+
+def read_text_key(stdscr):
+    """Czyta pojedynczy znak lub klawisz sterujący do wpisywania tekstu."""
+    try:
+        key = stdscr.get_wch() if hasattr(stdscr, "get_wch") else stdscr.getch()
+    except curses.error:
+        return None
+
+    if key == getattr(curses, "KEY_RESIZE", None):
+        if sys.platform == "win32":
+            try:
+                curses.resize_term(0, 0)
+            except curses.error:
+                pass
+        return RESIZE
+
+    if key in (curses.KEY_ENTER, 10, 13, "\n", "\r"):
+        return "CONFIRM"
+    if key in (27, "\x1b"):
+        return "CANCEL"
+    if key in (curses.KEY_BACKSPACE, 8, 127, "\x08", "\x7f", "\b"):
+        return "BACKSPACE"
+    if key in (3, "\x03"):
+        raise KeyboardInterrupt
+
+    if isinstance(key, int):
+        return chr(key) if 32 <= key < 127 else None
+    if isinstance(key, str) and len(key) == 1 and key.isprintable() and key not in ("\n", "\r", "\t"):
+        return key
+    return None

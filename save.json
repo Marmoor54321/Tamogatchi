@@ -1,1 +1,1 @@
-{"name": "Reksio", "is_alive": true, "is_sleeping": true, "money": 320, "high_score": 7, "owned_skins": ["classic", "krolik"], "active_skin": "krolik", "hunger": 97.08439999999827, "energy": 60.49897928000286, "happiness": 60.84127999999792, "health": 93.28855199998647, "last_update": "2026-11-25T01:02:57.772041"}
+{"name": "Reksio", "is_alive": true, "is_sleeping": false, "money": 30, "high_score": 3, "owned_skins": ["classic"], "active_skin": "classic", "hunger": 90.0, "energy": 82.0, "happiness": 88.0, "health": 100, "last_update": "2026-11-25T11:39:41.503750"}

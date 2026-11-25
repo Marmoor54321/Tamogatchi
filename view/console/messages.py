@@ -24,6 +24,7 @@ def _play_message(data):
 _MESSAGES = {
     "pet_died": lambda d: ("Zwierzak umarl (X_X). Wybierz 'Odrodz', by go wskrzesic!", "bad"),
     "pet_resurrected": lambda d: ("Magia! Zwierzak dostal drugie zycie!", "good"),
+    "pet_renamed": lambda d: (f"Zwierzak ma teraz na imie: {d}!", "good"),
     "action_play": _play_message,
     "action_play_refused": lambda d: ("Zwierzak jest zbyt zmeczony na zabawe. Niech sie przespi!", "warn"),
     "action_feed": lambda d: ("Mniam! (+Glod)", "good"),

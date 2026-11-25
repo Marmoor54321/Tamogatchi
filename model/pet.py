@@ -19,6 +19,7 @@ class Pet(Observable):
     MIN_ENERGY_TO_PLAY = SLEEPY_THRESHOLD  # śpiący zwierzak nie chce się bawić
     SLEEP_ENERGY_PER_SEC = 1 / 2      # w czasie snu: 1 punkt energii co 2 sekundy
     MONEY_PER_OBSTACLE = 10           # $ za każdą przeskoczoną przeszkodę w minigrze
+    MAX_NAME_LENGTH = 20              # limit długości imienia (mieści się w ramce widoku)
 
     def __init__(self, name="Tama"):
         super().__init__()
@@ -151,6 +152,15 @@ class Pet(Observable):
         # Informujemy widok o cudownym powrocie do życia
         self.notify_observers("pet_resurrected")
         self.notify_observers("stats_changed")
+
+    def rename(self, name):
+        """Nadaje zwierzakowi nowe imię (ignoruje puste, obcina do MAX_NAME_LENGTH)."""
+        cleaned = " ".join(str(name).split())[:self.MAX_NAME_LENGTH]
+        if not cleaned:
+            return False
+        self.name = cleaned
+        self.notify_observers("pet_renamed", self.name)
+        return True
 
     # --- KASA I EFEKTY (używa ich np. sklep z model/shop.py) ---
 
