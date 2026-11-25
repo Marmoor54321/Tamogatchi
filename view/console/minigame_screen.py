@@ -49,7 +49,7 @@ class MinigameScreen:
         c = self.canvas
         attr = c.style.get(prop.style, c.style["text"])
         base_x = 2 + round(entity.x)
-        top_row = GROUND_ROW - 1 - round(entity.y) - prop.height + 1
+        top_row = GROUND_ROW - 1 - int(entity.y) - prop.height + 1
 
         for i, line in enumerate(prop.lines):
             row = top_row + i

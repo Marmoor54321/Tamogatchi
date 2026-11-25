@@ -50,8 +50,8 @@ class Cloud(Entity):
 class DinoGame:
 
     MONEY_PER_OBSTACLE = 10
-    JUMP_VELOCITY = 13.0
-    GRAVITY = 27.0
+    JUMP_VELOCITY = 11.1
+    GRAVITY = 22.0
     BASE_SPEED = 20.0
     MAX_SPEED = 36.0
 

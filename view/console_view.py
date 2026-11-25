@@ -1,4 +1,5 @@
-import curses
+﻿import curses
+import time
 
 from model.shop import Shop
 from view.base import GameView
@@ -13,7 +14,7 @@ from view.console.name_dialog import NameDialog
 from view.console.pet_panel import PetPanel
 from view.console.stats_panel import StatsPanel
 
-MINIGAME_TICK_MS = 45
+MINIGAME_FPS = 30
 
 _STATS_FIELDS = frozenset({"hunger", "energy", "happiness", "health", "money", "high_score"})
 _PET_FIELDS = frozenset({"mood", "active_skin", "is_sleeping", "is_alive"})
@@ -59,7 +60,15 @@ class ConsoleView(GameView):
         return MENU_KEYS.get(key)
 
     def get_minigame_command(self):
+        frame = 1 / MINIGAME_FPS
+        now = time.monotonic()
+        self._next_frame = max(self._next_frame + frame, now)
+        self.stdscr.timeout(max(0, int((self._next_frame - now) * 1000)))
         key = read_key(self.stdscr)
+        rest = self._next_frame - time.monotonic()
+        if rest > 0:
+            curses.napms(int(rest * 1000))  
+        curses.flushinp()
         return None if key == RESIZE else MINIGAME_KEYS.get(key)
 
     def show_menu(self, items, selected_idx):
@@ -140,7 +149,7 @@ class ConsoleView(GameView):
 
     def start_minigame(self, game):
         self.in_minigame = True
-        self.stdscr.timeout(MINIGAME_TICK_MS)
+        self._next_frame = time.monotonic()
         self.canvas.erase()
         self.canvas.refresh()
 
@@ -150,6 +159,7 @@ class ConsoleView(GameView):
     def show_minigame_game_over(self, game):
         self.minigame.draw_game_over(game)
         curses.napms(350)
+        curses.flushinp()
         self.stdscr.timeout(-1)
         self.stdscr.getch()
 
