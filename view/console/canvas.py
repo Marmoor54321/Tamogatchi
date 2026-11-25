@@ -1,28 +1,19 @@
-# view/console/canvas.py
 import curses
 
 
 def acs(name, fallback):
-    """Znak ramki z curses (dostępny dopiero po initscr) albo zwykły zamiennik."""
     return getattr(curses, "ACS_" + name, ord(fallback))
 
 
 class Canvas:
-    """Wspólne narzędzia do rysowania na ekranie curses.
-
-    Panele nie dotykają stdscr bezpośrednio - rysują przez Canvas,
-    więc za małe okno nie wywraca gry, a kolory są w jednym miejscu.
-    """
 
     def __init__(self, stdscr):
         self.stdscr = stdscr
         self.too_small = False
         self.style = self._init_colors()
 
-    # --- KOLORY ---
     @staticmethod
     def _init_colors():
-        """Tworzy style (kolor + atrybut). Bez obsługi kolorów zostają same atrybuty."""
         normal, bold = curses.A_NORMAL, curses.A_BOLD
         style = {
             "frame": normal, "title": bold, "text": normal, "info": bold,
@@ -36,12 +27,11 @@ class Canvas:
             curses.start_color()
             try:
                 curses.use_default_colors()
-                bg = -1  # Przezroczyste tło - takie jak w terminalu
+                bg = -1
             except curses.error:
                 bg = curses.COLOR_BLACK
 
             pairs = {
-                # nazwa: (kolor tekstu, tło, dodatkowy atrybut)
                 "frame": (curses.COLOR_CYAN, bg, normal),
                 "title": (curses.COLOR_YELLOW, bg, bold),
                 "text": (curses.COLOR_WHITE, bg, normal),
@@ -60,18 +50,16 @@ class Canvas:
                 curses.init_pair(i, fg, back)
                 style[name] = curses.color_pair(i) | extra
         except curses.error:
-            pass  # Terminal bez kolorów - zostają style awaryjne
+            pass
         return style
 
     def stat_style(self, value):
-        """Zielony / żółty / czerwony zależnie od poziomu statystyki."""
         if value >= 60:
             return self.style["good"]
         if value >= 30:
             return self.style["warn"]
         return self.style["bad"]
 
-    # --- EKRAN ---
     def fits(self, min_h, min_w):
         rows, cols = self.stdscr.getmaxyx()
         return rows >= min_h and cols >= min_w
@@ -82,9 +70,7 @@ class Canvas:
     def refresh(self):
         self.stdscr.refresh()
 
-    # --- RYSOWANIE ---
     def put(self, y, x, text, attr=curses.A_NORMAL):
-        """Bezpieczny addstr - za małe okno nie wywraca gry."""
         try:
             self.stdscr.addstr(y, x, text, attr)
         except curses.error:
@@ -98,7 +84,6 @@ class Canvas:
                 pass
 
     def fill(self, y, x, width):
-        """Czyści fragment wiersza (nie rusza ramek obok)."""
         self.put(y, x, " " * width)
 
     def clear_inside(self, box):

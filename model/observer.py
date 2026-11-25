@@ -1,12 +1,10 @@
 # model/observer.py
 
 class Observer:
-    """Interfejs dla widoków (nasłuchiwaczy)."""
     def update(self, event_name, data=None):
         pass
 
 class Observable:
-    """Klasa, po której dziedziczy Model. Pozwala dodawać obserwatorów i ich powiadamiać."""
     def __init__(self):
         self._observers = []
 

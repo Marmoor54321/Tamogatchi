@@ -1,16 +1,9 @@
-# view/console/pet_panel.py
 from view.console.layout import PET_BOX
 from view.console.panel import Panel
 from view.skin_art import MOODS, render_skin, skin_name
 
 
 class PetPanel(Panel):
-    """Rysunek zwierzaka: założona skórka + nastrój z modelu.
-
-    W sklepie ze skórkami pokazuje podgląd skórki zaznaczonej w menu
-    (ConsoleView ustawia wtedy preview_skin).
-    """
-
     def __init__(self, canvas, pet):
         super().__init__(canvas, PET_BOX, pet.name)
         self.pet = pet

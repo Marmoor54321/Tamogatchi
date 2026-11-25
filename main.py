@@ -1,21 +1,17 @@
-﻿# main.py
-import curses
+﻿import curses
 from model.pet import Pet
 from model.shop import Shop
 from view.console_view import ConsoleView
 from controller.game_controller import GameController
 
 def main_app(stdscr):
-    # 1. Inicjalizacja modelu
     pet = Pet("Reksio")
-    is_new_game = not pet.load_state() # Próba wczytania stanu gry z pliku JSON
+    is_new_game = not pet.load_state() # Wczytanie z pliku
 
-    shop = Shop(pet)  # Sklep z przedmiotami i skórkami (model/shop.py)
+    shop = Shop(pet)
 
-    # 2. Inicjalizacja widoku
     view = ConsoleView(stdscr, pet, shop)
 
-    # 3. Inicjalizacja kontrolera i start głównej pętli
     controller = GameController(pet, view, shop, ask_name_on_start=is_new_game)
     controller.run()
 

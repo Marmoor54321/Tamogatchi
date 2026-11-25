@@ -1,7 +1,3 @@
-# view/console/keys.py
-"""Tłumaczenie klawiszy na komendy dla kontrolera
-
-"""
 import curses
 import sys
 
@@ -28,12 +24,11 @@ RESIZE = "RESIZE"
 
 
 def read_key(stdscr):
-    """Czyta klawisz. Zmianę rozmiaru okna zwraca jako RESIZE."""
     key = stdscr.getch()
     if key == getattr(curses, "KEY_RESIZE", None):
         if sys.platform == "win32":
             try:
-                curses.resize_term(0, 0)  # PDCurses wymaga ręcznego odczytu nowego rozmiaru
+                curses.resize_term(0, 0)
             except curses.error:
                 pass
         return RESIZE
@@ -41,7 +36,6 @@ def read_key(stdscr):
 
 
 def read_text_key(stdscr):
-    """Czyta pojedynczy znak lub klawisz sterujący do wpisywania tekstu."""
     try:
         key = stdscr.get_wch() if hasattr(stdscr, "get_wch") else stdscr.getch()
     except curses.error:

@@ -1,4 +1,3 @@
-# view/console/minigame_screen.py
 import curses
 
 from view.console.canvas import acs
@@ -6,22 +5,16 @@ from view.console.layout import SCREEN_H, SCREEN_W, TOO_SMALL
 from view.minigame_props import PROPS, get_player_prop
 
 GROUND_ROW = 10
-TOP_ROW = 3            # Pierwszy wiersz pola gry (pod paskiem statusu)
+TOP_ROW = 3
 HINT = "Spacja / Strzalka w gore: SKOK       Esc / q: WYJSCIE"
 
 
 class MinigameScreen:
-    """Pełnoekranowy widok minigry Dino. Rysuje stan z model/dino_game.py.
-
-    W wersji graficznej ta klasa rysowałaby sprite'y (np. Pygame surface).
-    """
-
     def __init__(self, canvas, pet):
         self.canvas = canvas
         self.pet = pet
 
     def draw(self, game):
-        """Rysuje jedną klatkę minigry."""
         c, s = self.canvas, self.canvas.style
         c.erase()
         if not c.fits(SCREEN_H, SCREEN_W):
@@ -31,29 +24,26 @@ class MinigameScreen:
 
         c.draw_box((0, 0, SCREEN_H, SCREEN_W), "Mini-gra: Zabawa (Chrome Dino)")
 
-        # Pasek statusu (wynik, rekord, zarobione monety)
         status = f"Wynik: {game.score}    Rekord: {game.high_score}    Zdobyte monety: +{game.money_earned}$"
         c.put(1, 3, status, s["title"])
         c.hline(2, 1, acs("HLINE", "-") | s["frame"], SCREEN_W - 2)
 
-        for cloud in game.clouds:                     # Chmury w tle
+        for cloud in game.clouds:
             self._draw_prop(PROPS.get(cloud.prop_id), cloud)
 
         c.hline(GROUND_ROW, 1, acs("HLINE", "=") | s["frame"], SCREEN_W - 2)   # Ziemia
 
-        for obs in game.obstacles:                    # Przeszkody
+        for obs in game.obstacles:
             self._draw_prop(PROPS.get(obs.prop_id), obs)
 
-        player = game.get_player_entity()             # Gracz w założonej skórce
+        player = game.get_player_entity()
         self._draw_prop(get_player_prop(self.pet.active_skin, player.prop_id), player)
 
-        # Dolny pasek podpowiedzi
         c.hline(12, 1, acs("HLINE", "-") | s["frame"], SCREEN_W - 2)
         c.put(13, 3, HINT, s["hint"])
         c.refresh()
 
     def _draw_prop(self, prop, entity):
-        """Rysuje linie TextProp w miejscu obiektu (y=0 to stopa tuż nad ziemią)."""
         if not prop:
             return
         c = self.canvas
@@ -63,14 +53,13 @@ class MinigameScreen:
 
         for i, line in enumerate(prop.lines):
             row = top_row + i
-            if TOP_ROW <= row <= GROUND_ROW - 1:      # Tylko wewnątrz pola gry
+            if TOP_ROW <= row <= GROUND_ROW - 1:
                 for col_idx, ch in enumerate(line):
                     col = base_x + col_idx
                     if 1 < col < SCREEN_W - 1 and ch != " ":
                         c.put(row, col, ch, attr)
 
     def draw_game_over(self, game):
-        """Ostatnia klatka + okienko z podsumowaniem po uderzeniu w przeszkodę."""
         self.draw(game)
         c, s = self.canvas, self.canvas.style
 

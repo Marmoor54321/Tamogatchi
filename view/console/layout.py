@@ -1,6 +1,3 @@
-# view/console/layout.py
-"""Układ ekranu. Każdy panel to (y, x, wysokość, szerokość) razem z ramką."""
-
 SCREEN_W = 66
 SCREEN_H = 15
 

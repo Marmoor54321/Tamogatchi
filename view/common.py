@@ -1,9 +1,3 @@
-# view/common.py
-"""Wspólne, niezależne od technologii widoku etykiety, opisy i komunikaty.
-
-Moduł nie zależy od `curses` ani od żadnej biblioteki graficznej, dzięki czemu
-może być używany zarówno przez `ConsoleView`, jak i przyszły widok GUI.
-"""
 from model.shop import SHOP_ITEMS
 
 STAT_LABELS = {
@@ -54,7 +48,6 @@ def _item_name(item_id, shop=None):
 
 
 def action_label(action, pet, shop):
-    """Zwraca przyjazną etykietę dla identyfikatora akcji z kontrolera."""
     if action.startswith("buy:"):
         item = shop.items[action[len("buy:"):]]
         return f"{item.name}({item.price}$)"
@@ -69,7 +62,6 @@ def action_label(action, pet, shop):
 
 
 def is_action_available(action, pet, shop):
-    """Czy akcję da się obecnie wykonać (np. czy zwierzak ma dość energii/kasy)."""
     if action == "play":
         return pet.can_play()
     if action.startswith("buy:"):
@@ -87,8 +79,6 @@ def _with_missing_money(text, price, pet):
 
 
 def describe_action(action, pet, shop):
-    """Opis wskazanej akcji (np. efekty przedmiotu lub powód blokady).
-    Zwraca parę (tekst, styl) albo None."""
     if action == "play" and pet.is_alive and not pet.can_play():
         return (
             f"Za malo energii (min. {pet.MIN_ENERGY_TO_PLAY}%). "
@@ -132,7 +122,6 @@ def _play_message(data):
 
 
 def message_for(event_name, data=None, shop=None):
-    """Mapuje zdarzenie z modelu na komunikat (tekst, nazwa_stylu) albo None."""
     handlers = {
         "pet_died": lambda d: ("Zwierzak umarl (X_X). Wybierz 'Odrodz', by go wskrzesic!", "bad"),
         "pet_resurrected": lambda d: ("Magia! Zwierzak dostal drugie zycie!", "good"),

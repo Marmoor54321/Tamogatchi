@@ -1,6 +1,3 @@
-# view/skin_art.py
-"""Wygląd skórek zwierzaka w wersji tekstowej (ASCII).
-"""
 from view.common import MOOD_CAPTIONS, SKIN_NAMES, skin_name
 
 SKIN_ART = {
@@ -26,7 +23,6 @@ SKIN_ART = {
     },
 }
 
-# Nastrój z modelu -> (podpis, nazwa stylu kolorów)
 MOODS = {
     "happy": (MOOD_CAPTIONS["happy"], "good"),
     "sad": (MOOD_CAPTIONS["sad"], "warn"),
@@ -40,7 +36,7 @@ def render_skin(skin_id, mood):
     """Zwraca linie rysunku o równej szerokości (łatwo je wyśrodkować jako blok)."""
     art = SKIN_ART.get(skin_id, SKIN_ART["classic"])
     if mood == "asleep":
-        mood = "sleepy"   # Śpi - zamknięte oczy i "zZ" jak u śpiącego
+        mood = "sleepy"
     face = art["faces"].get(mood, art["faces"]["happy"])
     lines = [line.replace("{f}", face) for line in art["lines"]]
     width = max(len(line) for line in lines)
