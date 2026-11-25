@@ -41,34 +41,74 @@ class Pet(Observable):
 
         self.last_update = datetime.now()
         self.save_file = "save.json"
+        self._last_notified = self._snapshot()
+
+    def _snapshot(self):
+        """Migawka stanu używana do wykrywania faktycznych zmian dla obserwatorów."""
+        return {
+            "name": self.name,
+            "is_alive": self.is_alive,
+            "is_sleeping": self.is_sleeping,
+            "money": self.money,
+            "high_score": self.high_score,
+            "active_skin": self.active_skin,
+            "owned_skins": frozenset(self.owned_skins),
+            "hunger": self.hunger,
+            "energy": self.energy,
+            "happiness": self.happiness,
+            "health": self.health,
+            "mood": self.mood,
+            "can_play": self.can_play(),
+        }
+
+    def _collect_stats_diff(self):
+        """Zwraca słownik zmienionych pól od ostatniego powiadomienia `stats_changed`."""
+        current = self._snapshot()
+        prev = self._last_notified
+        fields = {k for k, v in current.items() if prev.get(k) != v}
+        numeric = {"hunger", "energy", "happiness", "health"}
+        rounded = {
+            k for k in fields
+            if (round(current[k]) != round(prev.get(k, 0)) if k in numeric else True)
+        }
+        self._last_notified = current
+        return {"fields": fields, "rounded": rounded}
+
+    def _notify_stats_changed(self, force=False):
+        """Wysyła `stats_changed` z listą zmienionych pól (tylko gdy coś się zmieniło)."""
+        diff = self._collect_stats_diff()
+        if diff["fields"] or force:
+            self.notify_observers("stats_changed", diff)
 
     def _clamp(self, value):
         """Pomocnicza metoda trzymająca statystyki w ryzach (0-100).
         Wartości są zmiennoprzecinkowe, żeby małe przyrosty czasu się sumowały."""
         return max(0.0, min(100.0, float(value)))
 
-    def _update_stat(self, stat_name, amount):
-        """Aktualizuje statystykę i powiadamia obserwatorów"""
+    def _apply_stat_changes(self, changes, force_notify=False):
+        """Atomowo zmienia zestaw statystyk i wysyła jedno powiadomienie `stats_changed`."""
         if not self.is_alive:
             return
+        for stat_name, amount in changes.items():
+            current_val = getattr(self, stat_name)
+            setattr(self, stat_name, self._clamp(current_val + amount))
 
-        current_val = getattr(self, stat_name)
-        new_val = self._clamp(current_val + amount)
-        setattr(self, stat_name, new_val)
-
-        # Jeśli zdrowie spadnie do 0, zwierzak umiera
         if self.health == 0:
             self.is_alive = False
+            self.is_sleeping = False
             self.notify_observers("pet_died")
 
-        self.notify_observers("stats_changed")
+        self._notify_stats_changed(force=force_notify)
+
+    def _update_stat(self, stat_name, amount):
+        """Aktualizuje statystykę i powiadamia obserwatorów"""
+        self._apply_stat_changes({stat_name: amount}, force_notify=True)
 
     # --- AKCJE UŻYTKOWNIKA ---
 
     def feed(self):
         if not self.is_alive: return
-        self._update_stat("hunger", 30)
-        self._update_stat("energy", 5)
+        self._apply_stat_changes({"hunger": 30, "energy": 5}, force_notify=True)
         self.notify_observers("action_feed")
 
     # --- SEN ---
@@ -129,9 +169,10 @@ class Pet(Observable):
             self.high_score = score
 
         # Zabawa poprawia humor, ale zwierzak męczy się i robi głodny
-        self._update_stat("happiness", 25)
-        self._update_stat("energy", -15)
-        self._update_stat("hunger", -15)
+        self._apply_stat_changes(
+            {"happiness": 25, "energy": -15, "hunger": -15},
+            force_notify=True,
+        )
 
         self.notify_observers("action_play", {
             "score": score,
@@ -151,7 +192,7 @@ class Pet(Observable):
         self.last_update = datetime.now()
         # Informujemy widok o cudownym powrocie do życia
         self.notify_observers("pet_resurrected")
-        self.notify_observers("stats_changed")
+        self._notify_stats_changed(force=True)
 
     def rename(self, name):
         """Nadaje zwierzakowi nowe imię (ignoruje puste, obcina do MAX_NAME_LENGTH)."""
@@ -174,14 +215,7 @@ class Pet(Observable):
     def apply_effects(self, effects):
         """Zmienia kilka statystyk naraz, np. {"hunger": 20, "energy": -5}.
         Widok dostaje jedno zdarzenie "stats_changed" zamiast kilku."""
-        if not self.is_alive:
-            return
-        for stat, amount in effects.items():
-            setattr(self, stat, self._clamp(getattr(self, stat) + amount))
-        if self.health == 0:
-            self.is_alive = False
-            self.notify_observers("pet_died")
-        self.notify_observers("stats_changed")
+        self._apply_stat_changes(effects, force_notify=True)
 
     # --- SKÓRKI ---
 
@@ -246,7 +280,7 @@ class Pet(Observable):
             self._advance(seconds, -self.ENERGY_DROP_PER_SEC)
 
         self.last_update = datetime.now()
-        self.notify_observers("stats_changed")
+        self._notify_stats_changed(force=False)
 
     def _advance(self, seconds, energy_per_sec):
         """Jeden odcinek czasu ze stałym tempem zmian (sen albo czuwanie)."""
@@ -363,6 +397,7 @@ class Pet(Observable):
             time_diff = (datetime.now() - saved_time).total_seconds()
             if time_diff > 0:
                 self.pass_time(time_diff)
+        self._last_notified = self._snapshot()
         return True
 
     def _set_aside_bad_save(self):

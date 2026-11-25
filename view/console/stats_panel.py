@@ -1,17 +1,10 @@
 # view/console/stats_panel.py
+from view.common import STAT_LABELS
 from view.console.canvas import acs
 from view.console.layout import STATS_BOX
 from view.console.panel import Panel
 
 BAR_WIDTH = 15
-
-# Nazwy statystyk modelu wyświetlane graczowi (używa ich też opis przedmiotów w sklepie)
-STAT_LABELS = {
-    "hunger": "Glod",
-    "energy": "Energia",
-    "happiness": "Szczescie",
-    "health": "Zdrowie",
-}
 LABEL_WIDTH = 10
 
 

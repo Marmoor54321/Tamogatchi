@@ -1,25 +1,26 @@
 # view/skin_art.py
 """Wygląd skórek zwierzaka w wersji tekstowej (ASCII).
 """
+from view.common import MOOD_CAPTIONS, SKIN_NAMES, skin_name
 
 SKIN_ART = {
     "classic": {
-        "name": "Klasyczny",
+        "name": SKIN_NAMES["classic"],
         "lines": ["({f})", "/| |\\"],
         "faces": {"happy": "^o^", "sad": "T_T", "sleepy": "-_-", "dead": "X_X"},
     },
     "kotek": {
-        "name": "Kotek",
+        "name": SKIN_NAMES["kotek"],
         "lines": [" /\\_/\\ ", "( {f} )", " > ^ < "],
         "faces": {"happy": "^.^", "sad": "T.T", "sleepy": "-.-", "dead": "x.x"},
     },
     "krolik": {
-        "name": "Krolik",
+        "name": SKIN_NAMES["krolik"],
         "lines": [" (\\_/) ", " ({f}) ", '(")(")'],
         "faces": {"happy": "^.^", "sad": "T.T", "sleepy": "-.-", "dead": "x.x"},
     },
     "robot": {
-        "name": "Robot",
+        "name": SKIN_NAMES["robot"],
         "lines": [" .-T-. ", "[ {f} ]", " /|_|\\ "],
         "faces": {"happy": "^_^", "sad": ";_;", "sleepy": "-_-", "dead": "x_x"},
     },
@@ -27,16 +28,12 @@ SKIN_ART = {
 
 # Nastrój z modelu -> (podpis, nazwa stylu kolorów)
 MOODS = {
-    "happy": ("Szczesliwy", "good"),
-    "sad": ("Smutny", "warn"),
-    "sleepy": ("Spiacy", "sleepy"),
-    "asleep": ("Spi... +1 energii / 2 s", "sleepy"),
-    "dead": ("Nie zyje", "bad"),
+    "happy": (MOOD_CAPTIONS["happy"], "good"),
+    "sad": (MOOD_CAPTIONS["sad"], "warn"),
+    "sleepy": (MOOD_CAPTIONS["sleepy"], "sleepy"),
+    "asleep": (MOOD_CAPTIONS["asleep"], "sleepy"),
+    "dead": (MOOD_CAPTIONS["dead"], "bad"),
 }
-
-
-def skin_name(skin_id):
-    return SKIN_ART.get(skin_id, {}).get("name", skin_id)
 
 
 def render_skin(skin_id, mood):

@@ -7,8 +7,8 @@ z modelu i mówi odpowiednim panelom, żeby się przerysowały.
 """
 import curses
 
-from model.observer import Observer
 from model.shop import Shop
+from view.base import GameView
 from view.console import messages
 from view.console.canvas import Canvas
 from view.console.keys import MENU_KEYS, MINIGAME_KEYS, RESIZE, read_key
@@ -22,11 +22,16 @@ from view.console.stats_panel import StatsPanel
 
 MINIGAME_TICK_MS = 45  # ~22 FPS
 
+_STATS_FIELDS = frozenset({"hunger", "energy", "happiness", "health", "money", "high_score"})
+_PET_FIELDS = frozenset({"mood", "active_skin", "is_sleeping", "is_alive"})
+_MENU_FIELDS = frozenset({"money", "can_play", "is_alive", "is_sleeping"})
 
-class ConsoleView(Observer):
+
+class ConsoleView(GameView):
     def __init__(self, stdscr, pet, shop=None, tick_ms=500):
         self.stdscr = stdscr
         self.pet = pet
+        self.shop = shop or Shop(pet)
         self.tick_ms = tick_ms
         self.in_minigame = False
         # Podpinamy ten widok jako obserwatora naszego zwierzaka
@@ -50,7 +55,7 @@ class ConsoleView(Observer):
         self.stats = StatsPanel(self.canvas, pet)
         self.pet_panel = PetPanel(self.canvas, pet)
         self.message = MessagePanel(self.canvas)
-        self.menu = MenuPanel(self.canvas, pet, shop or Shop(pet))
+        self.menu = MenuPanel(self.canvas, pet, self.shop)
         self.panels = [self.stats, self.pet_panel, self.message, self.menu]
         self.minigame = MinigameScreen(self.canvas, pet)
         self.name_dialog = NameDialog(self.canvas)
@@ -103,7 +108,7 @@ class ConsoleView(Observer):
     def update(self, event_name, data=None):
         # Komunikat zapamiętujemy zawsze - także ten z minigry (wynik biegu,
         # śmierć zwierzaka). Zobaczymy go po powrocie do menu.
-        msg = messages.message_for(event_name, data)
+        msg = messages.message_for(event_name, data, shop=self.shop)
         if msg:
             self.message.set(*msg)
 
@@ -113,9 +118,19 @@ class ConsoleView(Observer):
             return
 
         if event_name == "stats_changed":
-            # Energia spada z czasem - "Zabawa" może przestać (albo zacząć) być dostępna
-            self._redraw(self.stats, self.pet_panel, self.menu)
-            if self.message.hint:
+            changed = data.get("rounded") if isinstance(data, dict) else None
+            if changed is not None and not changed:
+                return
+            panels = []
+            if changed is None or changed & _STATS_FIELDS:
+                panels.append(self.stats)
+            if changed is None or changed & _PET_FIELDS:
+                panels.append(self.pet_panel)
+            if changed is None or changed & _MENU_FIELDS:
+                panels.append(self.menu)
+            if panels:
+                self._redraw(*panels)
+            if self.message.hint and (changed is None or changed & _MENU_FIELDS):
                 # Odśwież widoczną podpowiedź (np. "brakuje 10$", "za malo energii").
                 # Gdy panel pokazuje wynik akcji, zostawiamy go w spokoju.
                 self.message.show_hint(self.menu.describe_hovered())

@@ -1,5 +1,6 @@
 ﻿# controller/game_controller.py
 import time
+import model.dino_game as dino_game_module
 from model.observer import Observer
 from model.shop import Shop
 
@@ -10,20 +11,32 @@ SLEEP_MENU = ["wake", "exit"]   # Śpiący zwierzak: można go tylko obudzić
 
 
 class GameController(Observer):
-    """Steruje grą niezależnie od rodzaju widoku.
+    """Steruje grą niezależnie od rodzaju widoku (tekstowego lub graficznego).
 
-    Widok musi udostępniać tylko dwie metody:
-      - get_command() -> "NEXT" | "PREV" | "CONFIRM" | "BACK" | None
-        (czeka krótko na wejście użytkownika, ustala tempo pętli gry)
-      - show_menu(items, selected_idx)
-    Dzięki temu wersja graficzna wymaga jedynie nowej klasy widoku.
+    Kontrakt widoku opisuje `view/base.py` (`GameView`).
+    Obsługiwane komendy w `handle_command`:
+      - klawiatura: "NEXT", "PREV", "CONFIRM", "BACK", "EXIT" / "QUIT"
+      - mysz / akcje bezpośrednie:
+          ("HOVER", idx)      - zaznacza pozycję bez uruchamiania
+          ("SELECT", idx)     - zaznacza i uruchamia pozycję o indeksie idx
+          ("EXECUTE", action) - uruchamia wskazaną akcję z aktywnego menu
     """
 
-    def __init__(self, model, view, shop=None, ask_name_on_start=False):
+    def __init__(
+        self,
+        model,
+        view,
+        shop=None,
+        ask_name_on_start=False,
+        track_width=58,
+        event_driven=False,
+    ):
         self.model = model
         self.view = view
         self.shop = shop or Shop(model)
         self.ask_name_on_start = ask_name_on_start
+        self.track_width = track_width
+        self.event_driven = event_driven
 
         self.main_menu = list(MAIN_MENU)
         # Menu sklepu buduje się samo z katalogu - nowy przedmiot w model/shop.py
@@ -42,6 +55,7 @@ class GameController(Observer):
             self.menu = self.main_menu
         self.selected_idx = 0
         self.running = False
+        self.active_minigame = None
         self._last_tick = time.monotonic()
 
         # Kontroler też obserwuje model, żeby zareagować np. na śmierć zwierzaka
@@ -58,22 +72,51 @@ class GameController(Observer):
         elif event_name == "action_wake_up" and self.model.is_alive:
             self._open_menu(self.main_menu)  # Obudzony ręcznie albo sam się wyspał
 
-    # --- GŁÓWNA PĘTLA ---
-    def run(self):
+    # --- CYKL ŻYCIA (PĘTLA I TRYB ZDARZENIOWY GUI) ---
+    def start(self):
+        """Inicjuje sesję gry (wspólne dla `run()` oraz pętli zdarzeń GUI)."""
         self.running = True
+        self._show_menu()
+        if self.ask_name_on_start:
+            self._prompt_pet_name(is_resurrection=False)
+        self._last_tick = time.monotonic()
+
+    def step(self):
+        """Wykonuje jeden krok czasowy gry (przydatne dla timerów w GUI)."""
+        if not self.running:
+            return False
+        if self.active_minigame is not None:
+            still_going = self.step_minigame()
+            if not still_going and self.active_minigame is not None:
+                self.finish_minigame_session(aborted=False)
+            return self.running
+
+        dt = self._tick()
+        render = getattr(self.view, "render", None)
+        if callable(render):
+            render(dt)
+        return self.running
+
+    def finish(self):
+        """Kończy sesję i zapisuje stan modelu."""
+        self.running = False
+        self.model.save_state()
+
+    def run(self):
         try:
-            self._show_menu()
-            if self.ask_name_on_start:
-                self._prompt_pet_name(is_resurrection=False)
-            self._last_tick = time.monotonic()
+            self.start()
             while self.running:
                 command = self.view.get_command()
-                self._tick()
+                dt = self._tick()
                 if command:
                     self.handle_command(command)
+                if self.running:
+                    render = getattr(self.view, "render", None)
+                    if callable(render):
+                        render(dt)
         finally:
             # Zapis także przy Ctrl+C
-            self.model.save_state()
+            self.finish()
 
     def _tick(self):
         """Przekazuje zwierzakowi czas, który upłynął od poprzedniego wywołania.
@@ -88,6 +131,7 @@ class GameController(Observer):
         self.model.pass_time(dt)
         return dt
 
+    # --- KOMENDY (KLAWIATURA I MYSZ) ---
     def handle_command(self, command):
         if command == "NEXT":
             self._move(1)
@@ -97,6 +141,43 @@ class GameController(Observer):
             self._execute(self.menu[self.selected_idx])
         elif command == "BACK":
             self._go_back()
+        elif command in ("EXIT", "QUIT"):
+            self.request_exit()
+        elif isinstance(command, tuple) and len(command) == 2:
+            kind, arg = command
+            if kind == "HOVER":
+                self.hover_item(arg)
+            elif kind == "SELECT":
+                self.select_item(arg)
+            elif kind in ("EXECUTE", "ACTION"):
+                self.execute_action(arg)
+
+    def hover_item(self, idx):
+        """Ustawia zaznaczenie na wskazanym elemencie menu (np. najechanie myszą)."""
+        if isinstance(idx, int) and 0 <= idx < len(self.menu) and idx != self.selected_idx:
+            self.selected_idx = idx
+            self._show_menu()
+
+    def select_item(self, idx):
+        """Zaznacza i od razu wykonuje element menu o indeksie `idx` (np. klik myszą)."""
+        if isinstance(idx, int) and 0 <= idx < len(self.menu):
+            self.selected_idx = idx
+            self._show_menu()
+            self._execute(self.menu[self.selected_idx])
+
+    def execute_action(self, action):
+        """Wykonuje wskazaną akcję z aktywnego menu (lub globalne 'exit')."""
+        if action == "exit":
+            self.request_exit()
+            return
+        if action in self.menu:
+            self.select_item(self.menu.index(action))
+
+    def request_exit(self):
+        """Zamyka grę z dowolnego ekranu lub podmenu."""
+        if self.active_minigame is not None:
+            self.finish_minigame_session(aborted=True)
+        self.running = False
 
     # --- POMOCNICZE ---
     def _execute(self, action):
@@ -129,7 +210,10 @@ class GameController(Observer):
         elif action == "play":
             # O tym, czy zwierzak ma siłę na zabawę, decyduje model
             if self.model.start_play():
-                self._play_minigame()
+                if self.event_driven:
+                    self.start_minigame_session()
+                else:
+                    self._play_minigame()
         elif action == "sleep":
             self.model.start_sleep()   # Menu snu otworzy się po zdarzeniu "action_sleep"
         elif action == "wake":
@@ -137,41 +221,77 @@ class GameController(Observer):
         elif action.startswith("buy:"):
             self.shop.buy(action[len("buy:"):])
 
-    def _play_minigame(self):
-        """Uruchamia minigrę typu Chrome Dino.
-        Zamiast natychmiastowej kasy za samo kliknięcie, gracz zdobywa 10$ za każdą przeskoczoną przeszkodę.
-        """
-        from model.dino_game import DinoGame
-        game = DinoGame(track_width=58, high_score=self.model.high_score)
+    # --- MINIGRA ---
+    def start_minigame_session(self):
+        """Rozpoczyna sesję minigry Dino (działa też w trybie zdarzeniowym GUI)."""
+        game = dino_game_module.DinoGame(
+            track_width=self.track_width,
+            high_score=self.model.high_score,
+        )
+        self.active_minigame = game
         self.view.start_minigame(game)
         self._tick()  # Od tej chwili liczymy czas gry
+        return game
 
-        while not game.is_game_over:
-            cmd = self.view.get_minigame_command()
-            if cmd == "QUIT":
-                break
-            elif cmd == "JUMP":
-                game.jump()
+    def handle_minigame_command(self, cmd):
+        """Obsługuje pojedynczą komendę gracza w minigrze. Zwraca False przy wyjściu."""
+        if self.active_minigame is None:
+            return False
+        if cmd in ("QUIT", "EXIT"):
+            if cmd == "EXIT":
+                self.running = False
+            return False
+        if cmd == "JUMP":
+            self.active_minigame.jump()
+        return True
 
-            # Czas płynie też dla zwierzaka - ten sam zegar co w menu
-            dt = self._tick()
-            if not self.model.is_alive:
-                break  # Zwierzak padł w trakcie biegu - koniec zabawy, bez nagrody
+    def step_minigame(self):
+        """Wykonuje jedną klatkę logiki i rysowania minigry. Zwraca True, gdy gra trwa."""
+        game = self.active_minigame
+        if game is None or game.is_game_over:
+            return False
+        dt = self._tick()
+        if not self.model.is_alive:
+            return False  # Zwierzak padł w trakcie biegu - koniec zabawy, bez nagrody
+        game.update(dt)
+        self.view.draw_minigame(game)
+        return not game.is_game_over
 
-            game.update(dt)
-            self.view.draw_minigame(game)
+    def finish_minigame_session(self, aborted=False):
+        """Kończy sesję minigry, przyznaje nagrodę i przywraca menu główne."""
+        game = self.active_minigame
+        if game is None:
+            return
+        self.active_minigame = None
 
         # Zapisujemy wynik zabawy w modelu (10$ za przeszkodę + aktualizacja rekordu).
         # Martwy zwierzak nic nie dostaje - model sam to sprawdza.
         self.model.record_minigame_result(game.score)
 
         # Ekran końcowy tylko po kolizji (nie po ESC/Q ani po śmierci zwierzaka)
-        if game.is_game_over and self.model.is_alive:
-            self.view.show_minigame_game_over(game)
+        if not aborted and game.is_game_over and self.model.is_alive:
+            result = self.view.show_minigame_game_over(game)
+            if result in ("EXIT", "QUIT"):
+                self.running = False
             self._tick()  # Czas na ekranie końcowym też się liczy (raz)
 
         self.view.end_minigame()
         self._show_menu()
+
+    def _play_minigame(self):
+        """Uruchamia minigrę typu Chrome Dino w trybie pętli synchronicznej."""
+        game = self.start_minigame_session()
+        aborted = False
+
+        while not game.is_game_over:
+            cmd = self.view.get_minigame_command()
+            if not self.handle_minigame_command(cmd):
+                aborted = True
+                break
+            if not self.step_minigame():
+                break
+
+        self.finish_minigame_session(aborted=aborted)
 
     def _prompt_pet_name(self, is_resurrection=False):
         """Wywołuje okno nadania imienia w widoku (przy pierwszym starcie lub odrodzeniu)."""
