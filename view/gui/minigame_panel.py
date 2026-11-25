@@ -1,19 +1,9 @@
-# view/gui/minigame_panel.py
-"""Widok graficzny minigry Chrome Dino osadzony w oknie Tamagotchi."""
 import time
 import tkinter as tk
 from view.gui import theme
 from view.gui.pet_sprites import draw_minigame_entity
 
-
 class MinigamePanel(tk.Frame):
-    """Rysuje minigrę z dokładnym odwzorowaniem wymiarów i kolizji z `model/dino_game.py`.
-
-    - Zwierzak i przeszkody są rysowane dokładnie w prostokącie swojego hitboxa AABB.
-    - Przelicznik `sy = 2 * sx` zachowuje naturalne proporcje postaci (7x3 w jednostkach
-      logicznych odpowiada prostokątowi ~1.17:1, a kaktus 4x2 jest kwadratem 1:1).
-    - Przycisk "Wróć" jest czerwony zgodnie z wymaganiami.
-    """
 
     CANVAS_W = 820
     CANVAS_H = 340
@@ -39,7 +29,6 @@ class MinigamePanel(tk.Frame):
         self._ground_offset = 0.0
         self._last_draw_time = time.monotonic()
 
-        # Pasek górny minigry (HUD + czerwony przycisk Wróć)
         hud = tk.Frame(self, bg=theme.BG_PANEL_INNER, padx=12, pady=8)
         hud.pack(fill="x", pady=(0, 10))
 
@@ -79,7 +68,6 @@ class MinigamePanel(tk.Frame):
         )
         self.back_button.pack(side="right")
 
-        # Plansza gry
         self.canvas = tk.Canvas(
             self,
             width=self.CANVAS_W,
@@ -121,11 +109,6 @@ class MinigamePanel(tk.Frame):
         canvas_w: float = None,
         ground_y: float = None,
     ) -> tuple[float, float]:
-        """Zwraca (sx, sy) w pikselach na jednostkę świata gry.
-
-        Proporcja `sy = 2.0 * sx` zachowuje właściwe rozmiary zwierzaka (7x3 -> ~95x81 px)
-        oraz przeszkód (3x1, 4x2) względem logicznego hitboxa z `model/dino_game.py`.
-        """
         w = canvas_w or cls.CANVAS_W
         gy = ground_y or cls.GROUND_Y
         play_w = max(200.0, w - 2 * cls.MARGIN_X)
@@ -141,7 +124,6 @@ class MinigamePanel(tk.Frame):
         canvas_w: float = None,
         ground_y: float = None,
     ) -> tuple[float, float, float, float]:
-        """Przelicza logiczny prostokąt kolizji (x, y, width, height) na piksele Canvasa."""
         gy = ground_y or cls.GROUND_Y
         sx, sy = cls.world_scale(track_width, canvas_w, gy)
         x1 = cls.MARGIN_X + entity.x * sx
@@ -162,11 +144,9 @@ class MinigamePanel(tk.Frame):
         c = self.canvas
         w, h, ground_y = self._canvas_dims()
         c.delete("static_bg")
-        # Niebo + horyzont + podłoże
         c.create_rectangle(0, 0, w, ground_y, fill="#162238", outline="", tags="static_bg")
         c.create_rectangle(0, ground_y, w, h, fill="#334155", outline="", tags="static_bg")
         c.create_line(0, ground_y, w, ground_y, fill="#94A3B8", width=2, tags="static_bg")
-        # Delikatne gwiazdy/tło
         for fx, fy in ((0.10, 0.14), (0.26, 0.10), (0.48, 0.16), (0.68, 0.09), (0.88, 0.17)):
             sx, sy = w * fx, ground_y * fy
             c.create_oval(sx, sy, sx + 3, sy + 3, fill="#475569", outline="", tags="static_bg")
@@ -174,7 +154,6 @@ class MinigamePanel(tk.Frame):
         self._bg_size = (w, h)
 
     def draw(self, game):
-        """Rysuje jedną klatkę minigry (aktualizuje HUD tylko przy zmianie wyniku)."""
         cw, ch, ground_y = self._canvas_dims()
         if self._bg_size != (cw, ch):
             self._draw_static_background()
@@ -190,7 +169,6 @@ class MinigamePanel(tk.Frame):
         c.delete("entity")
         c.delete("ground_scroll")
 
-        # Przewijające się detale podłoża
         now = time.monotonic()
         dt = min(0.1, max(0.0, now - self._last_draw_time))
         self._last_draw_time = now
@@ -202,20 +180,18 @@ class MinigamePanel(tk.Frame):
             c.create_line(x, ground_y + 14, x + 18, ground_y + 14,
                           fill="#475569", width=2, tags="ground_scroll")
 
-        # Chmury w tle
         for cloud in game.clouds:
             x1, y1, x2, y2 = self.entity_bbox(cloud, game.track_width, cw, ground_y)
             draw_minigame_entity(c, cloud.prop_id, x1, y1, x2, y2, tag="entity")
 
-        # Przeszkody
         for obs in game.obstacles:
             x1, y1, x2, y2 = self.entity_bbox(obs, game.track_width, cw, ground_y)
             draw_minigame_entity(c, obs.prop_id, x1, y1, x2, y2, tag="entity")
 
-        # Gracz w aktualnej skórce i dokładnych wymiarach hitboxa
         player = game.get_player_entity()
         px1, py1, px2, py2 = self.entity_bbox(player, game.track_width, cw, ground_y)
         draw_minigame_entity(
             c, player.prop_id, px1, py1, px2, py2,
             skin_id=self.pet.active_skin, tag="entity"
         )
+

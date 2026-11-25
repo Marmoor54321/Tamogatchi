@@ -1,10 +1,3 @@
-# view/gui/pet_sprites.py
-"""Wektorowe rysowanie zwierzaka (wszystkie skórki i nastroje) oraz propsów minigry.
-
-Każda funkcja rysująca w minigrze przyjmuje dokładny prostokąt hitboxa (x1, y1, x2, y2),
-dzięki czemu rozmiar i proporcje zwierzaka oraz przeszkód w 100% odpowiadają
-logice kolizji AABB w `model/dino_game.py`.
-"""
 from model.dino_game import PropType
 
 SKIN_PALETTES = {
@@ -38,18 +31,13 @@ SKIN_PALETTES = {
     },
 }
 
-
 def _pt(x1: float, y1: float, w: float, h: float, fx: float, fy: float) -> tuple[float, float]:
-    """Przelicza znormalizowane współrzędne [0..1] na piksele wewnątrz prostokąta."""
     return x1 + fx * w, y1 + fy * h
-
 
 def _box(x1: float, y1: float, w: float, h: float, fx1: float, fy1: float, fx2: float, fy2: float):
     return x1 + fx1 * w, y1 + fy1 * h, x1 + fx2 * w, y1 + fy2 * h
 
-
 def _draw_eyes_and_mouth(canvas, x1, y1, w, h, mood, blink=False, tag="pet", is_robot=False):
-    """Rysuje ekspresyjną twarz zwierzaka zależną od nastroju i mrugania."""
     eye_color = "#38BDF8" if is_robot else "#0F172A"
     lx, ly = _pt(x1, y1, w, h, 0.36, 0.48)
     rx, ry = _pt(x1, y1, w, h, 0.64, 0.48)
@@ -82,7 +70,6 @@ def _draw_eyes_and_mouth(canvas, x1, y1, w, h, mood, blink=False, tag="pet", is_
     if mood == "sad":
         for cx, cy in ((lx, ly), (rx, ry)):
             canvas.create_oval(cx - er, cy - er, cx + er, cy + er, fill=eye_color, outline="", tags=tag)
-        # Smutne brwi i łezka
         canvas.create_line(lx - er * 1.2, ly - er * 1.2, lx + er, ly - er * 1.8, fill=eye_color, width=2, tags=tag)
         canvas.create_line(rx - er, ry - er * 1.8, rx + er * 1.2, ry - er * 1.2, fill=eye_color, width=2, tags=tag)
         tx, ty = _pt(x1, y1, w, h, 0.31, 0.59)
@@ -92,7 +79,6 @@ def _draw_eyes_and_mouth(canvas, x1, y1, w, h, mood, blink=False, tag="pet", is_
         canvas.create_arc(mx1, my1, mx2, my2, start=20, extent=140, style="arc", outline=eye_color, width=2, tags=tag)
         return
 
-    # happy / jump
     for cx, cy in ((lx, ly), (rx, ry)):
         canvas.create_oval(cx - er, cy - er, cx + er, cy + er, fill=eye_color, outline="", tags=tag)
         if not is_robot:
@@ -101,7 +87,6 @@ def _draw_eyes_and_mouth(canvas, x1, y1, w, h, mood, blink=False, tag="pet", is_
                                fill="#FFFFFF", outline="", tags=tag)
     mx1, my1, mx2, my2 = _box(x1, y1, w, h, 0.42, 0.57, 0.58, 0.69)
     canvas.create_arc(mx1, my1, mx2, my2, start=200, extent=140, style="arc", outline=eye_color, width=2, tags=tag)
-
 
 def draw_pet_body(
     canvas,
@@ -116,10 +101,6 @@ def draw_pet_body(
     is_jumping: bool = False,
     tag: str = "pet",
 ):
-    """Rysuje zwierzaka dowolnej skórki ściśle wewnątrz prostokąta (x1, y1, x2, y2).
-
-    `leg_phase`: 0 = spoczynek, 1 = krok A, 2 = krok B.
-    """
     w = max(10.0, x2 - x1)
     h = max(10.0, y2 - y1)
     pal = SKIN_PALETTES.get(skin_id, SKIN_PALETTES["classic"])
@@ -133,7 +114,6 @@ def draw_pet_body(
         dark_col = "#475569"
         accent_col = "#94A3B8"
 
-    # Nogi (animacja biegu w minigrze lub spokojne stanie)
     if leg_phase == 1:
         l_leg = _box(x1, y1, w, h, 0.28, 0.80, 0.42, 0.98)
         r_leg = _box(x1, y1, w, h, 0.58, 0.75, 0.72, 0.90)
@@ -148,7 +128,6 @@ def draw_pet_body(
         r_leg = _box(x1, y1, w, h, 0.56, 0.80, 0.70, 0.98)
 
     if skin_id == "kotek":
-        # Ogon (z lewej strony, wewnątrz 0.04..0.24)
         tail_pts = [
             *_pt(x1, y1, w, h, 0.22, 0.74),
             *_pt(x1, y1, w, h, 0.06, 0.64),
@@ -156,10 +135,8 @@ def draw_pet_body(
         ]
         canvas.create_line(*tail_pts, fill=dark_col, width=max(3, round(w * 0.06)),
                            capstyle="round", smooth=True, tags=tag)
-        # Nogi
         canvas.create_oval(*l_leg, fill=dark_col, outline=outline_col, width=1.5, tags=tag)
         canvas.create_oval(*r_leg, fill=dark_col, outline=outline_col, width=1.5, tags=tag)
-        # Uszy
         l_ear = [*_pt(x1, y1, w, h, 0.24, 0.34), *_pt(x1, y1, w, h, 0.28, 0.04), *_pt(x1, y1, w, h, 0.44, 0.24)]
         r_ear = [*_pt(x1, y1, w, h, 0.56, 0.24), *_pt(x1, y1, w, h, 0.72, 0.04), *_pt(x1, y1, w, h, 0.76, 0.34)]
         canvas.create_polygon(*l_ear, fill=body_col, outline=outline_col, width=1.5, tags=tag)
@@ -168,31 +145,25 @@ def draw_pet_body(
         r_in = [*_pt(x1, y1, w, h, 0.60, 0.25), *_pt(x1, y1, w, h, 0.70, 0.11), *_pt(x1, y1, w, h, 0.72, 0.30)]
         canvas.create_polygon(*l_in, fill=cheek_col, outline="", tags=tag)
         canvas.create_polygon(*r_in, fill=cheek_col, outline="", tags=tag)
-        # Ciało
         canvas.create_oval(*_box(x1, y1, w, h, 0.18, 0.20, 0.82, 0.86),
                            fill=body_col, outline=outline_col, width=2, tags=tag)
         canvas.create_oval(*_box(x1, y1, w, h, 0.32, 0.64, 0.68, 0.84),
                            fill=accent_col, outline="", tags=tag)
-        # Wąsy
         for wy in (0.52, 0.58):
             canvas.create_line(*_pt(x1, y1, w, h, 0.14, wy - 0.02), *_pt(x1, y1, w, h, 0.28, wy),
                                fill=outline_col, width=1.3, tags=tag)
             canvas.create_line(*_pt(x1, y1, w, h, 0.72, wy), *_pt(x1, y1, w, h, 0.86, wy - 0.02),
                                fill=outline_col, width=1.3, tags=tag)
         _draw_eyes_and_mouth(canvas, x1, y1, w, h, mood, blink=blink, tag=tag)
-        # Różowy nosek
         nx1, ny1, nx2, ny2 = _box(x1, y1, w, h, 0.47, 0.53, 0.53, 0.58)
         canvas.create_oval(nx1, ny1, nx2, ny2, fill=cheek_col, outline="", tags=tag)
         return
 
     if skin_id == "krolik":
-        # Puszysty ogonek z boku
         canvas.create_oval(*_box(x1, y1, w, h, 0.10, 0.64, 0.24, 0.79),
                            fill="#FFFFFF", outline=outline_col, width=1.3, tags=tag)
-        # Nogi
         canvas.create_oval(*l_leg, fill=dark_col, outline=outline_col, width=1.5, tags=tag)
         canvas.create_oval(*r_leg, fill=dark_col, outline=outline_col, width=1.5, tags=tag)
-        # Długie uszy królika (mieszczące się w górnym obszarze 0.02..0.34)
         canvas.create_oval(*_box(x1, y1, w, h, 0.27, 0.02, 0.43, 0.38),
                            fill=body_col, outline=outline_col, width=1.5, tags=tag)
         canvas.create_oval(*_box(x1, y1, w, h, 0.57, 0.02, 0.73, 0.38),
@@ -201,10 +172,8 @@ def draw_pet_body(
                            fill=accent_col, outline="", tags=tag)
         canvas.create_oval(*_box(x1, y1, w, h, 0.61, 0.06, 0.69, 0.31),
                            fill=accent_col, outline="", tags=tag)
-        # Ciało
         canvas.create_oval(*_box(x1, y1, w, h, 0.19, 0.26, 0.81, 0.87),
                            fill=body_col, outline=outline_col, width=2, tags=tag)
-        # Policzki
         canvas.create_oval(*_box(x1, y1, w, h, 0.24, 0.54, 0.34, 0.62), fill=cheek_col, outline="", tags=tag)
         canvas.create_oval(*_box(x1, y1, w, h, 0.66, 0.54, 0.76, 0.62), fill=cheek_col, outline="", tags=tag)
         _draw_eyes_and_mouth(canvas, x1, y1, w, h, mood, blink=blink, tag=tag)
@@ -212,53 +181,42 @@ def draw_pet_body(
         return
 
     if skin_id == "robot":
-        # Mechaniczne stopy
         canvas.create_rectangle(*l_leg, fill=dark_col, outline=outline_col, width=1.5, tags=tag)
         canvas.create_rectangle(*r_leg, fill=dark_col, outline=outline_col, width=1.5, tags=tag)
-        # Antenka
         ax, ay1 = _pt(x1, y1, w, h, 0.50, 0.10)
         _, ay2 = _pt(x1, y1, w, h, 0.50, 0.24)
         canvas.create_line(ax, ay1, ax, ay2, fill=outline_col, width=2, tags=tag)
         tip_col = "#EF4444" if mood == "dead" else accent_col
         canvas.create_oval(*_box(x1, y1, w, h, 0.45, 0.02, 0.55, 0.12),
                            fill=tip_col, outline=outline_col, width=1.2, tags=tag)
-        # Rączki po bokach
         canvas.create_rectangle(*_box(x1, y1, w, h, 0.10, 0.46, 0.20, 0.66),
                                 fill=dark_col, outline=outline_col, width=1.5, tags=tag)
         canvas.create_rectangle(*_box(x1, y1, w, h, 0.80, 0.46, 0.90, 0.66),
                                 fill=dark_col, outline=outline_col, width=1.5, tags=tag)
-        # Korpus robota
         canvas.create_rectangle(*_box(x1, y1, w, h, 0.20, 0.24, 0.80, 0.84),
                                 fill=body_col, outline=outline_col, width=2, tags=tag)
-        # Ekran twarzy
         canvas.create_rectangle(*_box(x1, y1, w, h, 0.27, 0.34, 0.73, 0.74),
                                 fill="#0F172A", outline=dark_col, width=1.5, tags=tag)
         _draw_eyes_and_mouth(canvas, x1, y1, w, h, mood, blink=blink, tag=tag, is_robot=True)
         return
 
-    # "classic" (domyślny)
     canvas.create_oval(*l_leg, fill=dark_col, outline=outline_col, width=1.5, tags=tag)
     canvas.create_oval(*r_leg, fill=dark_col, outline=outline_col, width=1.5, tags=tag)
-    # Małe uszka
     canvas.create_oval(*_box(x1, y1, w, h, 0.20, 0.14, 0.36, 0.34),
                        fill=dark_col, outline=outline_col, width=1.5, tags=tag)
     canvas.create_oval(*_box(x1, y1, w, h, 0.64, 0.14, 0.80, 0.34),
                        fill=dark_col, outline=outline_col, width=1.5, tags=tag)
-    # Rączki
     canvas.create_oval(*_box(x1, y1, w, h, 0.10, 0.48, 0.24, 0.66),
                        fill=body_col, outline=outline_col, width=1.5, tags=tag)
     canvas.create_oval(*_box(x1, y1, w, h, 0.76, 0.48, 0.90, 0.66),
                        fill=body_col, outline=outline_col, width=1.5, tags=tag)
-    # Okrągłe ciałko
     canvas.create_oval(*_box(x1, y1, w, h, 0.18, 0.18, 0.82, 0.86),
                        fill=body_col, outline=outline_col, width=2, tags=tag)
     canvas.create_oval(*_box(x1, y1, w, h, 0.32, 0.65, 0.68, 0.83),
                        fill=accent_col, outline="", tags=tag)
-    # Policzki
     canvas.create_oval(*_box(x1, y1, w, h, 0.24, 0.53, 0.33, 0.61), fill=cheek_col, outline="", tags=tag)
     canvas.create_oval(*_box(x1, y1, w, h, 0.67, 0.53, 0.76, 0.61), fill=cheek_col, outline="", tags=tag)
     _draw_eyes_and_mouth(canvas, x1, y1, w, h, mood, blink=blink, tag=tag)
-
 
 def draw_minigame_entity(
     canvas,
@@ -270,7 +228,6 @@ def draw_minigame_entity(
     skin_id: str = "classic",
     tag: str = "entity",
 ):
-    """Rysuje element minigry dokładnie w prostokącie hitboxa (x1, y1, x2, y2)."""
     w = max(4.0, x2 - x1)
     h = max(4.0, y2 - y1)
 
@@ -285,15 +242,12 @@ def draw_minigame_entity(
     elif prop_id in (PropType.CACTUS_SMALL, PropType.CACTUS_LARGE):
         trunk_col = "#16A34A"
         outline_col = "#14532D"
-        # Główny pień kaktusa
         canvas.create_rectangle(*_box(x1, y1, w, h, 0.34, 0.04, 0.66, 0.98),
                                 fill=trunk_col, outline=outline_col, width=1.5, tags=tag)
-        # Ramiona kaktusa
         canvas.create_rectangle(*_box(x1, y1, w, h, 0.08, 0.28, 0.34, 0.56),
                                 fill=trunk_col, outline=outline_col, width=1.2, tags=tag)
         canvas.create_rectangle(*_box(x1, y1, w, h, 0.66, 0.22, 0.92, 0.50),
                                 fill=trunk_col, outline=outline_col, width=1.2, tags=tag)
-        # Jasny prążek dla głębi
         canvas.create_line(*_pt(x1, y1, w, h, 0.48, 0.10), *_pt(x1, y1, w, h, 0.48, 0.92),
                            fill="#4ADE80", width=1.5, tags=tag)
     elif prop_id == PropType.ROCK:
@@ -315,3 +269,4 @@ def draw_minigame_entity(
         canvas.create_oval(*_box(x1, y1, w, h, 0.05, 0.30, 0.45, 0.95), fill="#E2E8F0", outline="", tags=tag)
         canvas.create_oval(*_box(x1, y1, w, h, 0.28, 0.05, 0.72, 0.95), fill="#F8FAFC", outline="", tags=tag)
         canvas.create_oval(*_box(x1, y1, w, h, 0.55, 0.30, 0.95, 0.95), fill="#E2E8F0", outline="", tags=tag)
+

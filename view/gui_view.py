@@ -1,12 +1,3 @@
-# view/gui_view.py
-"""Widok graficzny (Tkinter) zgodny z kontraktem `GameView` z `view/base.py`.
-
-Współpracuje z `GameController` w trybie zdarzeniowym (`event_driven=True`):
-- Obsługuje klawiaturę i mysz bezpośrednio przez kontroler (`HOVER`, `SELECT`, `PREV`, `NEXT`, `CONFIRM`, `BACK`).
-- Reaguje na zdarzenia z modelu w `update()` i odświeża wyłącznie te panele/pola,
-  które uległy zmianie.
-- Napędza płynne animacje (oddychanie, mruganie, cząsteczki, paski statystyk, minigrę ~60 FPS).
-"""
 import tkinter as tk
 from model.shop import Shop
 from view.base import GameView
@@ -19,15 +10,13 @@ from view.gui.minigame_panel import MinigamePanel
 from view.gui.pet_panel import PetPanel
 from view.gui.stats_panel import StatsPanel
 
-GUI_TICK_MS = 16  # ~60 FPS
+GUI_TICK_MS = 16
 
 _STATS_FIELDS = frozenset({"hunger", "energy", "happiness", "health", "money", "high_score"})
 _PET_FIELDS = frozenset({"mood", "active_skin", "is_sleeping", "is_alive"})
 _MENU_FIELDS = frozenset({"money", "can_play", "is_alive", "is_sleeping"})
 
-
 class GuiView(GameView):
-    """Główny widok graficzny aplikacji Tamagotchi w bibliotece Tkinter."""
 
     def __init__(self, root: tk.Tk, pet, shop=None, controller=None, tick_ms: int = GUI_TICK_MS):
         self.root = root
@@ -43,16 +32,13 @@ class GuiView(GameView):
 
         self.pet.add_observer(self)
 
-        # Konfiguracja głównego okna
         self.root.title(f"Tamogatchi — {self.pet.name}")
         self.root.configure(bg=theme.BG_APP)
         self.root.minsize(780, 560)
 
-        # Główny kontener ekranu opieki nad zwierzakiem
         self.main_container = tk.Frame(self.root, bg=theme.BG_APP, padx=16, pady=14)
         self.main_container.pack(fill="both", expand=True)
 
-        # Nagłówek aplikacji
         title_bar = tk.Frame(self.main_container, bg=theme.BG_APP)
         title_bar.pack(fill="x", pady=(0, 10))
         self.app_title_label = tk.Label(
@@ -64,7 +50,6 @@ class GuiView(GameView):
         )
         self.app_title_label.pack(side="left")
 
-        # Górna sekcja: Statystyki po lewej + Scena zwierzaka po prawej
         top_grid = tk.Frame(self.main_container, bg=theme.BG_APP)
         top_grid.pack(fill="both", expand=True, pady=(0, 10))
         top_grid.columnconfigure(0, weight=1, uniform="top")
@@ -77,11 +62,9 @@ class GuiView(GameView):
         self.pet_panel = PetPanel(top_grid, self.pet)
         self.pet_panel.grid(row=0, column=1, sticky="nsew", padx=(6, 0))
 
-        # Środkowa sekcja: Komunikat / podpowiedź
         self.message = MessagePanel(self.main_container)
         self.message.pack(fill="x", pady=(0, 10))
 
-        # Dolna sekcja: Interaktywne menu przycisków
         self.menu = MenuPanel(
             self.main_container,
             self.pet,
@@ -91,7 +74,6 @@ class GuiView(GameView):
         )
         self.menu.pack(fill="x")
 
-        # Widok minigry (ukryty dopóki gracz nie uruchomi "Zabawa")
         self.minigame_panel = MinigamePanel(
             self.root,
             self.pet,
@@ -99,18 +81,15 @@ class GuiView(GameView):
             on_quit=lambda: self._handle_minigame_input("QUIT"),
         )
 
-        # Wiadomość powitalna
         self.message.set(*(WELCOME if self.pet.is_alive else DIED_WHILE_AWAY))
         self.message.redraw(force=True)
 
-        # Obsługa klawiatury i zamknięcia okna
         self._bind_events()
         self.root.protocol("WM_DELETE_WINDOW", self._on_window_close)
 
     def set_controller(self, controller):
         self.controller = controller
 
-    # --- WEJŚCIE: KLAWIATURA I MYSZ ---
     def _bind_events(self):
         self.root.bind("<Left>", lambda _e: self._on_key_menu("PREV"))
         self.root.bind("<Up>", lambda _e: self._on_key_up())
@@ -183,9 +162,7 @@ class GuiView(GameView):
         if not self.controller.handle_minigame_command(cmd):
             self.controller.finish_minigame_session(aborted=True)
 
-    # --- PĘTLA ZDARZEŃ GUI ---
     def run_event_loop(self):
-        """Uruchamia kontroler i harmonogram klatek w pętli `mainloop()`."""
         if self.controller is None:
             raise RuntimeError("GuiView wymaga przypisanego kontrolera przed startem pętli.")
         self._center_root(880, 610)
@@ -255,7 +232,6 @@ class GuiView(GameView):
         y = max(0, (sh - height) // 2)
         self.root.geometry(f"{width}x{height}+{x}+{y}")
 
-    # --- KONTRAKT GameView ---
     def show_menu(self, items, selected_idx):
         self.menu.set_items(items, selected_idx)
         self.pet_panel.preview_skin = self.menu.hovered_skin()
@@ -281,7 +257,6 @@ class GuiView(GameView):
         finally:
             self._modal_open = False
 
-    # --- WZORZEC OBSERWATOR (INTELIGENTNE ODŚWIEŻANIE) ---
     def update(self, event_name, data=None):
         msg = message_for(event_name, data, shop=self.shop)
         if msg:
@@ -327,7 +302,6 @@ class GuiView(GameView):
             self.pet_panel.redraw()
             self.menu.redraw()
 
-    # --- MINIGRA ---
     def start_minigame(self, game):
         self.in_minigame = True
         self.main_container.pack_forget()
@@ -356,3 +330,4 @@ class GuiView(GameView):
         self.pet_panel.redraw(force=True)
         self.message.redraw(force=True)
         self.menu.redraw(force=True)
+

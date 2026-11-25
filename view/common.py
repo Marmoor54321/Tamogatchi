@@ -1,9 +1,3 @@
-# view/common.py
-"""Wspólne, niezależne od technologii widoku etykiety, opisy i komunikaty.
-
-Moduł nie zależy od `curses` ani od żadnej biblioteki graficznej, dzięki czemu
-może być używany zarówno przez `ConsoleView`, jak i przyszły widok GUI.
-"""
 from model.shop import SHOP_ITEMS
 
 STAT_LABELS = {
@@ -42,19 +36,15 @@ MOOD_CAPTIONS = {
 WELCOME = ("Witaj w Tamagotchi! Zadbaj o swojego zwierzaka.", "info")
 DIED_WHILE_AWAY = ("Pod twoja nieobecnosc zwierzak umarl (X_X). Wybierz 'Odrodz'!", "bad")
 
-
 def skin_name(skin_id):
     return SKIN_NAMES.get(skin_id, skin_id)
-
 
 def _item_name(item_id, shop=None):
     items = shop.items if shop is not None else SHOP_ITEMS
     item = items.get(item_id)
     return item.name if item else item_id
 
-
 def action_label(action, pet, shop):
-    """Zwraca przyjazną etykietę dla identyfikatora akcji z kontrolera."""
     if action.startswith("buy:"):
         item = shop.items[action[len("buy:"):]]
         return f"{item.name}({item.price}$)"
@@ -67,9 +57,7 @@ def action_label(action, pet, shop):
         return f"{skin_name(skin_id)}({shop.skin_prices[skin_id]}$)"
     return ACTION_LABELS.get(action, action)
 
-
 def is_action_available(action, pet, shop):
-    """Czy akcję da się obecnie wykonać (np. czy zwierzak ma dość energii/kasy)."""
     if action == "play":
         return pet.can_play()
     if action.startswith("buy:"):
@@ -78,17 +66,13 @@ def is_action_available(action, pet, shop):
         return shop.can_afford_skin(action[len("skin:"):])
     return True
 
-
 def _with_missing_money(text, price, pet):
     missing = price - pet.money
     if missing > 0:
         return f"{text}  [brakuje {missing}$]", "warn"
     return text, "info"
 
-
 def describe_action(action, pet, shop):
-    """Opis wskazanej akcji (np. efekty przedmiotu lub powód blokady).
-    Zwraca parę (tekst, styl) albo None."""
     if action == "play" and pet.is_alive and not pet.can_play():
         return (
             f"Za malo energii (min. {pet.MIN_ENERGY_TO_PLAY}%). "
@@ -118,7 +102,6 @@ def describe_action(action, pet, shop):
 
     return None
 
-
 def _play_message(data):
     if not isinstance(data, dict):
         return "Super zabawa!", "good"
@@ -130,9 +113,7 @@ def _play_message(data):
         return f"Super bieg! Przeskoczono {score} przeszkod (+{money}$).", "good"
     return "Koniec biegu! Nastepnym razem pojdzie lepiej.", "warn"
 
-
 def message_for(event_name, data=None, shop=None):
-    """Mapuje zdarzenie z modelu na komunikat (tekst, nazwa_stylu) albo None."""
     handlers = {
         "pet_died": lambda d: ("Zwierzak umarl (X_X). Wybierz 'Odrodz', by go wskrzesic!", "bad"),
         "pet_resurrected": lambda d: ("Magia! Zwierzak dostal drugie zycie!", "good"),
@@ -155,3 +136,4 @@ def message_for(event_name, data=None, shop=None):
     }
     make = handlers.get(event_name)
     return make(data) if make else None
+

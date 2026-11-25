@@ -1,7 +1,3 @@
-# view/gui/theme.py
-"""Spójna paleta barw, czcionki i style dla graficznego widoku Tamagotchi."""
-
-# Główne kolory aplikacji (nowoczesny, czytelny motyw ciemny)
 BG_APP = "#111622"
 BG_PANEL = "#1A2234"
 BG_PANEL_INNER = "#141B2B"
@@ -13,7 +9,6 @@ TEXT_PRIMARY = "#F1F5F9"
 TEXT_SECONDARY = "#94A3B8"
 TEXT_MUTED = "#64748B"
 
-# Kolory semantyczne (zgodne z nazwami stylów z view/common.py)
 STYLE_COLORS = {
     "good": "#22C55E",
     "info": "#38BDF8",
@@ -25,7 +20,6 @@ STYLE_COLORS = {
     "hint": TEXT_SECONDARY,
 }
 
-# Kolory przycisków menu
 BTN_NORMAL_BG = "#242F49"
 BTN_NORMAL_HOVER = "#2E3C5C"
 BTN_NORMAL_FG = "#F8FAFC"
@@ -38,7 +32,6 @@ BTN_DISABLED_BG = "#1D2436"
 BTN_DISABLED_FG = "#64748B"
 BTN_DISABLED_SELECTED_BG = "#475569"
 
-# Czerwone przyciski dla "Wyjście" ("exit") i "Wróć" ("back")
 RED_ACTIONS = frozenset({"exit", "back"})
 BTN_RED_BG = "#C62828"
 BTN_RED_HOVER = "#E53935"
@@ -46,7 +39,6 @@ BTN_RED_SELECTED_BG = "#EF4444"
 BTN_RED_SELECTED_BORDER = "#FECACA"
 BTN_RED_FG = "#FFFFFF"
 
-# Czcionki (Segoe UI działa świetnie na Windows, z bezpiecznym fallbackiem Tk)
 FONT_FAMILY = "Segoe UI"
 FONT_TITLE = (FONT_FAMILY, 14, "bold")
 FONT_SUBTITLE = (FONT_FAMILY, 11, "bold")
@@ -56,18 +48,14 @@ FONT_SMALL = (FONT_FAMILY, 9)
 FONT_HINT = (FONT_FAMILY, 9)
 FONT_MONO = ("Consolas", 10, "bold")
 
-
 def stat_color(value: float) -> str:
-    """Kolor paska statystyki w zależności od wartości (0-100)."""
     if value >= 60:
         return "#22C55E"
     if value >= 30:
         return "#F59E0B"
     return "#EF4444"
 
-
 def interpolate_hex(color_a: str, color_b: str, t: float) -> str:
-    """Płynnie miesza dwa kolory #RRGGBB dla parametru t w [0, 1]."""
     t = max(0.0, min(1.0, t))
     ra, ga, ba = int(color_a[1:3], 16), int(color_a[3:5], 16), int(color_a[5:7], 16)
     rb, gb, bb = int(color_b[1:3], 16), int(color_b[3:5], 16), int(color_b[5:7], 16)
@@ -75,3 +63,4 @@ def interpolate_hex(color_a: str, color_b: str, t: float) -> str:
     g = round(ga + (gb - ga) * t)
     b = round(ba + (bb - ba) * t)
     return f"#{r:02x}{g:02x}{b:02x}"
+

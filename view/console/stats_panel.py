@@ -1,4 +1,3 @@
-# view/console/stats_panel.py
 from view.common import STAT_LABELS
 from view.console.canvas import acs
 from view.console.layout import STATS_BOX
@@ -7,9 +6,7 @@ from view.console.panel import Panel
 BAR_WIDTH = 15
 LABEL_WIDTH = 10
 
-
 class StatsPanel(Panel):
-    """Kasa, rekord i paski statystyk zwierzaka."""
 
     def __init__(self, canvas, pet):
         super().__init__(canvas, STATS_BOX, "Statystyki")
@@ -27,7 +24,6 @@ class StatsPanel(Panel):
             self._draw_bar(y + row, cx, STAT_LABELS[stat], getattr(self.pet, stat))
 
     def _draw_bar(self, y, x, label, value):
-        """Rysuje np.:  Energia   ██████████▒▒▒▒▒  67%  (kolor zależny od wartości)"""
         c = self.canvas
         value = round(value)
         filled = round(value * BAR_WIDTH / 100)
@@ -36,3 +32,4 @@ class StatsPanel(Panel):
         c.hline(y, bar_x, acs("BLOCK", "#") | c.stat_style(value), filled)
         c.hline(y, bar_x + filled, acs("CKBOARD", "-") | c.style["empty"], BAR_WIDTH - filled)
         c.put(y, bar_x + BAR_WIDTH, f"{value:4}%", c.stat_style(value))
+

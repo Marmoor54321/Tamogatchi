@@ -1,5 +1,3 @@
-# view/gui/pet_panel.py
-"""Animowana scena zwierzaka z obsługą skórek, nastrojów, podglądu i efektów cząsteczkowych."""
 import math
 import random
 import tkinter as tk
@@ -15,15 +13,7 @@ MOOD_DISPLAY = {
     "dead": ("Nie żyje", "bad"),
 }
 
-
 class PetPanel(tk.Frame):
-    """Wyświetla animowanego zwierzaka na scenie Canvas.
-
-    Inteligentne odświeżanie:
-    - Tło sceny przerysowywane jest tylko przy zmianie nastroju/trybu.
-    - Korpus zwierzaka przerysowywany jest tylko przy zmianie skórki, nastroju lub mrugnięcia.
-    - Płynne kołysanie (oddychanie) w klatkach animacji przesuwa istniejące obiekty przez `canvas.move()`.
-    """
 
     STAGE_W = 300
     STAGE_H = 196
@@ -40,23 +30,20 @@ class PetPanel(tk.Frame):
         self.pet = pet
         self.preview_skin = None
 
-        # Stan animacji
         self._anim_time = 0.0
         self._blink_timer = 2.8
         self._is_blinking = False
         self._bob_offset = 0.0
         self._wiggle_time = 0.0
         self._wiggle_offset = 0.0
-        self._particles = []  # lista słowników {id, x, y, vx, vy, life, max_life, text, color}
+        self._particles = []
         self._sleep_spawn_timer = 0.0
 
-        # Pamięć ostatnio wyrenderowanego stanu (do inteligentnego odświeżania)
         self._rendered_name = None
         self._rendered_caption = None
         self._rendered_backdrop = None
         self._rendered_pet = None
 
-        # Nagłówek z imieniem zwierzaka i etykietą skórki
         top = tk.Frame(self, bg=theme.BG_PANEL)
         top.pack(fill="x", pady=(0, 8))
 
@@ -117,7 +104,6 @@ class PetPanel(tk.Frame):
         return skin_id, mood, caption, style_name
 
     def redraw(self, force=False):
-        """Odświeża wyłącznie zmienione elementy panelu zwierzaka."""
         if force or self._rendered_name != self.pet.name:
             self._rendered_name = self.pet.name
             self.name_label.configure(text=self.pet.name)
@@ -170,7 +156,6 @@ class PetPanel(tk.Frame):
         c.create_line(0, h * 0.76, w, h * 0.76, fill=theme.BORDER_SUBTLE, width=2, tags="backdrop")
 
         if mood == "asleep":
-            # Księżyc i gwiazdki
             c.create_oval(24, 20, 56, 52, fill="#FDE68A", outline="", tags="backdrop")
             c.create_oval(33, 16, 63, 46, fill=sky, outline="", tags="backdrop")
             for fx, fy in ((0.33, 0.14), (0.50, 0.09), (0.73, 0.17), (0.88, 0.11), (0.27, 0.30)):
@@ -212,7 +197,6 @@ class PetPanel(tk.Frame):
             self.poke()
 
     def poke(self):
-        """Reakcja na kliknięcie zwierzaka: buja się na boki i wypuszcza serduszko."""
         if not self.pet.is_alive:
             return
         self._wiggle_time = 0.45
@@ -236,7 +220,6 @@ class PetPanel(tk.Frame):
         c.delete("pet")
         x1, y1, x2, y2 = self._pet_bounds()
         scale = min(w / self.STAGE_W, h / self.STAGE_H)
-        # Cień pod zwierzakiem (zostaje na podłodze, bez kołysania)
         c.delete("pet_shadow")
         c.create_oval(
             w / 2 - 42 * scale, h * 0.77,
@@ -257,7 +240,6 @@ class PetPanel(tk.Frame):
         c.tag_raise("particles")
 
     def trigger_reaction(self, kind: str):
-        """Uruchamia krótką animację cząsteczkową po akcji użytkownika (np. jedzenie/odrodzenie)."""
         w, h = self._stage_size()
         cx, cy = w / 2, h * 0.35
         symbol = "❤" if kind == "feed" else "✨"
@@ -277,14 +259,12 @@ class PetPanel(tk.Frame):
             })
 
     def animate(self, dt: float):
-        """Płynna animacja oddechu, mrugania i cząsteczek (Zzz / serduszka)."""
         if dt <= 0:
             return
         self._anim_time += dt
         mood = self.pet.mood
         skin_id = self.preview_skin or self.pet.active_skin
 
-        # 1. Delikatne kołysanie (tylko gdy zwierzak żyje)
         if mood == "dead":
             target_bob = 6.0
         elif mood == "asleep":
@@ -309,7 +289,6 @@ class PetPanel(tk.Frame):
             if move_y:
                 self._bob_offset = target_bob
 
-        # 2. Naturalne mruganie oczami
         if mood in ("happy", "sad"):
             self._blink_timer -= dt
             if self._blink_timer <= 0:
@@ -320,7 +299,6 @@ class PetPanel(tk.Frame):
             self._is_blinking = False
             self.redraw()
 
-        # 3. Unoszące się "Zzz" podczas snu
         if mood == "asleep":
             self._sleep_spawn_timer -= dt
             if self._sleep_spawn_timer <= 0:
@@ -340,7 +318,6 @@ class PetPanel(tk.Frame):
                     "max_life": 1.6,
                 })
 
-        # 4. Aktualizacja aktywnych cząsteczek
         if self._particles:
             alive = []
             for p in self._particles:
@@ -351,3 +328,4 @@ class PetPanel(tk.Frame):
                     self.canvas.move(p["id"], p["vx"] * dt, p["vy"] * dt)
                     alive.append(p)
             self._particles = alive
+

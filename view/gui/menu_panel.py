@@ -1,17 +1,8 @@
-# view/gui/menu_panel.py
-"""Panel interaktywnych przycisków menu (obsługa myszy i klawiatury)."""
 import tkinter as tk
 from view.common import action_label, describe_action, is_action_available
 from view.gui import theme
 
-
 class MenuPanel(tk.Frame):
-    """Buduje przyciski dla aktywnego menu kontrolera.
-
-    - Przyciski "Wyjście" ("exit") i "Wróć" ("back") są zawsze czerwone.
-    - Przebudowuje widżety przycisków tylko przy zmianie listy akcji;
-      przy zmianie zaznaczenia lub dostępności aktualizuje wyłącznie kolory/ramki.
-    """
 
     def __init__(self, parent, pet, shop, on_hover, on_select):
         super().__init__(
@@ -53,8 +44,6 @@ class MenuPanel(tk.Frame):
         )
         self.hint_label.pack(side="right")
 
-        # Stała wysokość kontenera przycisków dopasowana do największego menu (np. Sklep),
-        # dzięki czemu panel zwierzaka nigdy nie zmienia rozmiaru przy przełączaniu menu.
         max_items = max(4, len(self.shop.items) + 2, len(self.shop.skin_prices) + 1)
         self._max_rows = (max_items + 3) // 4
         sample = tk.Button(self, text="Sample", font=theme.FONT_BODY_BOLD, padx=12, pady=10, bd=0)
@@ -93,7 +82,6 @@ class MenuPanel(tk.Frame):
         self._buttons.clear()
         self._button_states.clear()
 
-        # Rozkład w siatce (max 4 kolumny, żeby przyciski w sklepie wygodnie się mieściły)
         cols = min(4, max(1, len(self.items)))
         for c in range(4):
             self.btn_container.columnconfigure(c, weight=1 if c < cols else 0)
@@ -120,7 +108,6 @@ class MenuPanel(tk.Frame):
         self._rendered_items = list(self.items)
 
     def redraw(self, force=False):
-        """Aktualizuje tylko te przyciski, których stan (etykieta, zaznaczenie, dostępność) się zmienił."""
         if force or self._rendered_items != self.items:
             self._rebuild_buttons()
 
@@ -169,3 +156,4 @@ class MenuPanel(tk.Frame):
                 highlightbackground=hl_col,
                 highlightcolor=hl_col,
             )
+

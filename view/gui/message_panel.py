@@ -1,5 +1,3 @@
-# view/gui/message_panel.py
-"""Panel komunikatów i podpowiedzi z inteligentnym odświeżaniem."""
 import tkinter as tk
 from view.gui import theme
 
@@ -12,9 +10,7 @@ STYLE_ICONS = {
     "text": "•",
 }
 
-
 class MessagePanel(tk.Frame):
-    """Wyświetla ostatni komunikat gry albo podpowiedź zaznaczonego przycisku."""
 
     def __init__(self, parent):
         super().__init__(
@@ -66,7 +62,6 @@ class MessagePanel(tk.Frame):
         self.hint = hint
 
     def redraw(self, force=False):
-        """Aktualizuje widżety wyłącznie wtedy, gdy treść lub styl uległy zmianie."""
         if self.hint:
             raw_text, style_name = self.hint
             header = "Podpowiedź"
@@ -85,3 +80,4 @@ class MessagePanel(tk.Frame):
         self.accent_bar.configure(bg=color)
         self.title_label.configure(text=header)
         self.msg_label.configure(text=f"{prefix}  {raw_text}", fg=color)
+

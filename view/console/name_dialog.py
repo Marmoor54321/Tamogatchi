@@ -1,12 +1,8 @@
-# view/console/name_dialog.py
-"""Modalne okienko dialogowe do nadawania imienia zwierzakowi."""
 from model.pet import Pet
 from view.console.keys import RESIZE, read_text_key
 from view.console.layout import SCREEN_H, SCREEN_W
 
-
 class NameDialog:
-    """Wyświetla okienko wpisywania imienia i zwraca wynik po Enter/Esc."""
 
     BOX_W = 52
     BOX_H = 9
@@ -42,7 +38,6 @@ class NameDialog:
         c.refresh()
 
     def run(self, stdscr, default_name, is_resurrection=False, redraw_bg=None):
-        """Obsługuje pętlę wpisywania imienia. Zwraca tekst lub None przy Esc."""
         text = ""
         while True:
             self.draw(text, default_name, is_resurrection=is_resurrection)
@@ -58,3 +53,4 @@ class NameDialog:
                 text = text[:-1]
             elif key is not None and len(text) < Pet.MAX_NAME_LENGTH:
                 text += key
+

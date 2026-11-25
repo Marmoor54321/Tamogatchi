@@ -1,6 +1,3 @@
-# test_gui_view.py
-"""Testy warstwy prezentacji GUI: czerwone przyciski Wyjdź/Wstecz, dokładne wymiary
-zwierzaka w minigrze, inteligentne odświeżanie widoku oraz obsługa myszy/klawiatury."""
 import os
 import tempfile
 import tkinter as tk
@@ -17,9 +14,7 @@ from view.gui.minigame_panel import MinigamePanel
 from view.gui.pet_sprites import draw_minigame_entity
 from view.gui_view import GuiView
 
-
 class RecordingCanvas:
-    """Atrapa Canvasa rejestrująca wszystkie współrzędne rysowanych figur."""
 
     def __init__(self):
         self.calls = []
@@ -42,7 +37,6 @@ class RecordingCanvas:
     def create_arc(self, *coords, **_kw):
         self._record("arc", coords)
 
-
 class TkTestBase(unittest.TestCase):
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
@@ -62,7 +56,6 @@ class TkTestBase(unittest.TestCase):
             pass
         self._tmp.cleanup()
 
-
 class RedButtonsTest(TkTestBase):
     def test_exit_and_back_buttons_are_red_in_all_menus(self):
         self.ctrl.start()
@@ -81,7 +74,6 @@ class RedButtonsTest(TkTestBase):
                     self.view.show_menu(menu_items, selected_idx)
                     btn = self.view.menu._buttons[selected_idx]
                     self.assertIn(btn.cget("bg"), red_colors, (menu_items, action))
-                # Sprawdź też nieaktywny (niezaznaczony) przycisk Wyjście/Wróć
                 if action in ("exit", "back") and len(menu_items) > 1:
                     other_idx = 0 if selected_idx != 0 else 1
                     self.view.show_menu(menu_items, other_idx)
@@ -91,7 +83,6 @@ class RedButtonsTest(TkTestBase):
     def test_minigame_back_button_is_red(self):
         self.assertEqual(self.view.minigame_panel.back_button.cget("bg"), theme.BTN_RED_BG)
 
-
 class MinigameSizingAndHitboxTest(unittest.TestCase):
     def test_player_and_obstacle_dimensions_match_hitbox_proportions(self):
         game = DinoGame(track_width=58)
@@ -100,12 +91,10 @@ class MinigameSizingAndHitboxTest(unittest.TestCase):
         pw = x2 - x1
         ph = y2 - y1
 
-        # Stosunek wysokości do szerokości powinien wynosić ok. 6:7 (sy = 2 * sx dla 7x3)
         self.assertGreater(pw, 70)
         self.assertGreater(ph, 65)
         self.assertAlmostEqual(ph / pw, (game.player_height * 2.0) / game.player_width, places=4)
 
-        # Duży kaktus (4x2) powinien być w przybliżeniu kwadratowy, mniejszy niż skok
         from model.dino_game import Obstacle
         cactus = Obstacle(PropType.CACTUS_LARGE, 20, 0, 4, 2)
         cx1, cy1, cx2, cy2 = MinigamePanel.entity_bbox(cactus, game.track_width)
@@ -136,7 +125,6 @@ class MinigameSizingAndHitboxTest(unittest.TestCase):
                         self.assertGreaterEqual(y, y1 - 0.01, (skin_id, prop_id, kind))
                         self.assertLessEqual(y, y2 + 0.01, (skin_id, prop_id, kind))
 
-
 class SmartRefreshGuiTest(TkTestBase):
     def test_skips_redraw_when_rounded_stats_unchanged(self):
         self.ctrl.start()
@@ -158,7 +146,6 @@ class SmartRefreshGuiTest(TkTestBase):
         self.assertEqual(self.view.menu._buttons, initial_buttons)
         self.assertEqual(self.ctrl.selected_idx, 1)
 
-
 class GuiControllerIntegrationTest(TkTestBase):
     def test_mouse_shop_skins_and_minigame_quit_flow(self):
         self.ctrl.start()
@@ -178,7 +165,6 @@ class GuiControllerIntegrationTest(TkTestBase):
         self.ctrl.handle_command(("EXECUTE", "back"))
         self.assertIs(self.ctrl.menu, self.ctrl.main_menu)
 
-        # Uruchomienie minigry, skok i wyjście przyciskiem Wróć/QUIT
         self.ctrl.handle_command(("EXECUTE", "play"))
         self.assertTrue(self.view.in_minigame)
         self.assertIsNotNone(self.ctrl.active_minigame)
@@ -197,7 +183,6 @@ class GuiControllerIntegrationTest(TkTestBase):
         self.assertIn("Tamogatchi", self.root.title())
         self.assertNotIn("mysz", self.view.menu.hint_label.cget("text").lower())
 
-        # Kliknięcie w zwierzaka uruchamia bujanie na boki i wypuszcza serduszko
         x1, y1, x2, y2 = self.view.pet_panel._pet_bounds()
         cx, cy = (x1 + x2) / 2, (y1 + y2) / 2
         event = type("ClickEvent", (), {"x": cx, "y": cy})()
@@ -208,7 +193,6 @@ class GuiControllerIntegrationTest(TkTestBase):
         self.view.pet_panel.animate(0.05)
         self.assertNotEqual(self.view.pet_panel._wiggle_offset, 0.0)
 
-        # Po zakończeniu animacji wraca dokładnie do środka
         for _ in range(25):
             self.view.pet_panel.animate(0.03)
         self.assertEqual(self.view.pet_panel._wiggle_offset, 0.0)
@@ -258,6 +242,6 @@ class GuiControllerIntegrationTest(TkTestBase):
             mock_view_cls.return_value.set_controller.assert_called_once()
             mock_view_cls.return_value.run_event_loop.assert_called_once()
 
-
 if __name__ == "__main__":
     unittest.main()
+

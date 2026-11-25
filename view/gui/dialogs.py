@@ -1,9 +1,6 @@
-# view/gui/dialogs.py
-"""Okna dialogowe GUI (nadawanie imienia oraz podsumowanie minigry)."""
 import tkinter as tk
 from model.pet import Pet
 from view.gui import theme
-
 
 def _center_over(win: tk.Toplevel, parent: tk.Misc, width: int, height: int):
     parent.update_idletasks()
@@ -15,9 +12,7 @@ def _center_over(win: tk.Toplevel, parent: tk.Misc, width: int, height: int):
     y = py + (ph - height) // 2
     win.geometry(f"{width}x{height}+{max(0, x)}+{max(0, y)}")
 
-
 class NameDialog(tk.Toplevel):
-    """Modalne okno do nadawania imienia zwierzakowi (start gry lub odrodzenie)."""
 
     def __init__(self, parent, current_name: str, is_resurrection: bool = False):
         super().__init__(parent)
@@ -118,9 +113,7 @@ class NameDialog(tk.Toplevel):
         self.result = None
         self.destroy()
 
-
 class GameOverDialog(tk.Toplevel):
-    """Modalne okno podsumowania po kolizji w minigrze."""
 
     def __init__(self, parent, game):
         super().__init__(parent)
@@ -195,3 +188,4 @@ class GameOverDialog(tk.Toplevel):
 
     def _close(self):
         self.destroy()
+

@@ -1,6 +1,3 @@
-# view/console/layout.py
-"""Układ ekranu. Każdy panel to (y, x, wysokość, szerokość) razem z ramką."""
-
 SCREEN_W = 66
 SCREEN_H = 15
 
@@ -12,3 +9,4 @@ ROW_HINT = 14
 
 HINT = "<- -> wybor    Enter zatwierdz    Esc wroc ze sklepu"
 TOO_SMALL = f"Powieksz okno terminala (min. {SCREEN_W}x{SCREEN_H})."
+

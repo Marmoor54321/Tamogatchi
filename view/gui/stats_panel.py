@@ -1,5 +1,3 @@
-# view/gui/stats_panel.py
-"""Panel statystyk z inteligentnym odświeżaniem i płynną animacją pasków."""
 import tkinter as tk
 from view.common import STAT_LABELS
 from view.gui import theme
@@ -18,12 +16,7 @@ STAT_ICONS = {
     "health": "❤",
 }
 
-
 class StatsPanel(tk.Frame):
-    """Wyświetla kasę, rekord i płynnie animowane paski statystyk.
-
-    Odświeża wyłącznie te etykiety i paski, których wartość faktycznie się zmieniła.
-    """
 
     BAR_W = 210
     BAR_H = 16
@@ -52,7 +45,6 @@ class StatsPanel(tk.Frame):
         )
         header.pack(fill="x", pady=(0, 10))
 
-        # Górna karta: Kasa i Rekord
         top_row = tk.Frame(self, bg=theme.BG_PANEL_INNER, padx=12, pady=8)
         top_row.pack(fill="x", pady=(0, 12))
 
@@ -76,7 +68,6 @@ class StatsPanel(tk.Frame):
         )
         self.record_label.pack(side="left", padx=(6, 0))
 
-        # Paski statystyk
         self._stat_rows = {}
         for stat in STAT_LABELS:
             row = tk.Frame(self, bg=theme.BG_PANEL)
@@ -121,7 +112,6 @@ class StatsPanel(tk.Frame):
         self.redraw(force=True)
 
     def redraw(self, changed_fields=None, force=False):
-        """Aktualizuje wyłącznie te elementy statystyk, które uległy zmianie."""
         if force or changed_fields is None or "money" in changed_fields:
             if force or self._rendered.get("money") != self.pet.money:
                 self._rendered["money"] = self.pet.money
@@ -147,7 +137,6 @@ class StatsPanel(tk.Frame):
                 pct_label.configure(text=f"{rounded_val:3d}%", fg=theme.stat_color(rounded_val))
 
     def animate(self, dt: float):
-        """Płynnie dogania docelową długość pasków tylko wtedy, gdy trwa zmiana."""
         if dt <= 0:
             return
         alpha = min(1.0, dt * 12.0)
@@ -167,3 +156,4 @@ class StatsPanel(tk.Frame):
         width = max(0.0, (clamped / 100.0) * self.BAR_W)
         canvas.coords(fill_id, 0, 0, width, self.BAR_H)
         canvas.itemconfigure(fill_id, fill=theme.stat_color(clamped))
+
