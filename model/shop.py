@@ -43,9 +43,10 @@ class Item:
 
 SHOP_ITEMS = {
     "jablko": Item("Jablko", price=10, effects={"hunger": 20, "energy": 5}),
-    "burger": Item("Burger", price=30, effects={"hunger": 60, "energy": -10}),  # Dużo jedzenia, ale męczy
-    "kawa": Item("Kawa", price=20, effects={"hunger": 5, "energy": 40}),        # Kawa daje energię
-    "lek": Item("Lek", price=50, effects={"health": 30, "happiness": -5}),      # Leczy, ale nikt nie lubi leków
+    "burger": Item("Burger", price=30, effects={"hunger": 60, "energy": -10}),
+    "kawa": Item("Kawa", price=20, effects={"hunger": 5, "energy": 40}), 
+    "lek": Item("Lek", price=50, effects={"health": 30, "happiness": -5}),
+    "lody": Item("Lody", price=20, effects={"hunger": 10, "health": -3, "happiness": 10}),
 }
 
 
