@@ -87,18 +87,19 @@ class Pet(Observable):
         self._notify_stats_changed(force=force_notify)
 
     def _die(self):
-        """Śmierć zwierzaka: przepada cała kasa i kupione skórki (zostaje darmowa).
-        Rekord minigry zostaje. Zdarzenie "pet_died" mówi widokowi, co stracono."""
         lost_money = self.money
         lost_skins = sorted(self.owned_skins - {DEFAULT_SKIN})
+        lost_high_score = self.high_score
         self._lose_belongings()
         self.health = 0.0
         self.is_alive = False
         self.is_sleeping = False
-        self.notify_observers("pet_died", {"lost_money": lost_money, "lost_skins": lost_skins})
+        self.notify_observers("pet_died", {"lost_money": lost_money, "lost_skins": lost_skins,
+                                           "lost_high_score": lost_high_score})
 
     def _lose_belongings(self):
         self.money = 0
+        self.high_score = 0
         self.owned_skins = {DEFAULT_SKIN}
         self.active_skin = DEFAULT_SKIN
 
@@ -336,7 +337,7 @@ class Pet(Observable):
         active = state["active_skin"]
         self.active_skin = active if active in self.owned_skins else DEFAULT_SKIN
         if not self.is_alive:
-            self._lose_belongings()   # Martwy zwierzak w zapisie nie ma kasy ani skórek
+            self._lose_belongings()   # Martwy zwierzak w zapisie nie ma kasy, skórek ani rekordu
 
         if self.is_alive:
             time_diff = (datetime.now() - saved_time).total_seconds()

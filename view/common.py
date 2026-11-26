@@ -123,14 +123,18 @@ def _skins_word(n):
 def _died_message(data):
     lost_money = data.get("lost_money", 0) if isinstance(data, dict) else 0
     lost_skins = len(data.get("lost_skins", [])) if isinstance(data, dict) else 0
+    lost_record = data.get("lost_high_score", 0) if isinstance(data, dict) else 0
     lost = []
     if lost_money:
         lost.append(f"{lost_money}$")
     if lost_skins:
         lost.append(_skins_word(lost_skins))
+    if lost_record:
+        lost.append("rekord")
     if not lost:
         return "Zwierzak umarl (X_X). Wybierz 'Odrodz', by go wskrzesic!", "bad"
-    return f"Zwierzak umarl (X_X). Stracono {' i '.join(lost)}.", "bad"
+    joined = lost[0] if len(lost) == 1 else ", ".join(lost[:-1]) + " i " + lost[-1]
+    return f"Zwierzak umarl (X_X). Stracono {joined}.", "bad"
 
 def message_for(event_name, data=None, shop=None):
     handlers = {
