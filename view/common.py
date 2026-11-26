@@ -113,9 +113,28 @@ def _play_message(data):
         return f"Super bieg! Przeskoczono {score} przeszkod (+{money}$).", "good"
     return "Koniec biegu! Nastepnym razem pojdzie lepiej.", "warn"
 
+def _skins_word(n):
+    if n == 1:
+        return "1 skorke"
+    if 2 <= n % 10 <= 4 and not 12 <= n % 100 <= 14:
+        return f"{n} skorki"
+    return f"{n} skorek"
+
+def _died_message(data):
+    lost_money = data.get("lost_money", 0) if isinstance(data, dict) else 0
+    lost_skins = len(data.get("lost_skins", [])) if isinstance(data, dict) else 0
+    lost = []
+    if lost_money:
+        lost.append(f"{lost_money}$")
+    if lost_skins:
+        lost.append(_skins_word(lost_skins))
+    if not lost:
+        return "Zwierzak umarl (X_X). Wybierz 'Odrodz', by go wskrzesic!", "bad"
+    return f"Zwierzak umarl (X_X). Stracono {' i '.join(lost)}.", "bad"
+
 def message_for(event_name, data=None, shop=None):
     handlers = {
-        "pet_died": lambda d: ("Zwierzak umarl (X_X). Wybierz 'Odrodz', by go wskrzesic!", "bad"),
+        "pet_died": _died_message,
         "pet_resurrected": lambda d: ("Magia! Zwierzak dostal drugie zycie!", "good"),
         "pet_renamed": lambda d: (f"Zwierzak ma teraz na imie: {d}!", "good"),
         "action_play": _play_message,
