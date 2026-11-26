@@ -53,11 +53,21 @@ class ConsoleView(GameView):
         self.full_redraw()
 
     def get_command(self):
+        wait = self.pet_panel.next_animation_change(time.monotonic())
+        timeout = self.tick_ms if wait is None else min(self.tick_ms, max(10, int(wait * 1000) + 1))
+        self.stdscr.timeout(timeout)
         key = read_key(self.stdscr)
+        self._animate()
         if key == RESIZE:
             self.full_redraw()
             return None
         return MENU_KEYS.get(key)
+
+    def _animate(self):
+        if self.in_minigame or self.canvas.too_small:
+            return
+        if self.pet_panel.update_animation(time.monotonic()):
+            self.pet_panel.redraw()
 
     def get_minigame_command(self):
         frame = 1 / MINIGAME_FPS

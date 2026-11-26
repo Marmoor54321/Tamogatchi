@@ -31,15 +31,24 @@ MOODS = {
     "dead": (MOOD_CAPTIONS["dead"], "bad"),
 }
 
-def render_skin(skin_id, mood):
+def blink_face(face):
+    if len(face) < 2:
+        return face
+    return "-" + face[1:-1] + "-"
+
+ZZ_WIDTH = 3
+
+def render_skin(skin_id, mood, blink=False, zz="zZ"):
     art = SKIN_ART.get(skin_id, SKIN_ART["classic"])
-    if mood == "asleep":
-        mood = "sleepy"
-    face = art["faces"].get(mood, art["faces"]["happy"])
+    faces = art["faces"]
+    face_mood = "sleepy" if mood == "asleep" else mood
+    face = faces.get(face_mood, faces["happy"])
+    if blink and mood in ("happy", "sad"):
+        face = faces.get("blink") or blink_face(face)
     lines = [line.replace("{f}", face) for line in art["lines"]]
     width = max(len(line) for line in lines)
     lines = [line.center(width) for line in lines]
-    if mood == "sleepy":
-        lines = [line + ("zZ" if "{f}" in src else "  ") for line, src in zip(lines, art["lines"])]
+    if mood in ("sleepy", "asleep"):
+        lines = [line + (zz.ljust(ZZ_WIDTH) if "{f}" in src else " " * ZZ_WIDTH)
+                 for line, src in zip(lines, art["lines"])]
     return lines
-

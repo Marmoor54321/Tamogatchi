@@ -1,4 +1,7 @@
+import time
+
 from view.console.layout import PET_BOX
+from view.console.pet_animation import PetAnimator
 from view.console.panel import Panel
 from view.skin_art import MOODS, render_skin, skin_name
 
@@ -8,6 +11,18 @@ class PetPanel(Panel):
         super().__init__(canvas, PET_BOX, pet.name)
         self.pet = pet
         self.preview_skin = None
+        self.animator = PetAnimator(time.monotonic())
+        self.anim = self.animator.frame(time.monotonic(), pet.mood)
+
+    def update_animation(self, now):
+        frame = self.animator.frame(now, self.pet.mood)
+        if frame == self.anim:
+            return False
+        self.anim = frame
+        return True
+
+    def next_animation_change(self, now):
+        return self.animator.next_change(now, self.pet.mood)
 
     def draw_frame(self):
         self.title = self.pet.name
@@ -18,12 +33,13 @@ class PetPanel(Panel):
         skin_id = self.pet.active_skin
         if self.preview_skin:
             skin_id, caption = self.preview_skin, f"Podglad: {skin_name(self.preview_skin)}"
-        art = render_skin(skin_id, self.pet.mood)
+        blink, lift, zz = self.anim
+        art = render_skin(skin_id, self.pet.mood, blink=blink, zz=zz)
 
         c, attr = self.canvas, self.canvas.style[style_name]
         y, x, h, w = self.box
         art_x = x + (w - len(art[0])) // 2
         for i, line in enumerate(art):
-            c.put(y + 2 + i, art_x, line, attr)
+            c.put(y + 2 - lift + i, art_x, line, attr)
         c.put(y + h - 2, x + (w - len(caption)) // 2, caption, attr)
 
