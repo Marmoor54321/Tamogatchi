@@ -1,4 +1,4 @@
-import argparse
+﻿import argparse
 import curses
 import tkinter as tk
 from model.pet import Pet
@@ -43,7 +43,10 @@ if __name__ == "__main__":
         help="Uruchom klasyczną wersję tekstową w terminalu (curses)",
     )
     args = parser.parse_args()
-    if args.console:
-        curses.wrapper(main_app)
-    else:
-        main_gui()
+    try:
+        if args.console:
+            curses.wrapper(main_app)
+        else:
+            main_gui()
+    except KeyboardInterrupt:
+        pass
